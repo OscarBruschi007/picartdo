@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "electric_face.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

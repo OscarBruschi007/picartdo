@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "artist_of_the_week.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

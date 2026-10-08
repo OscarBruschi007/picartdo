@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "third_eye_seat.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

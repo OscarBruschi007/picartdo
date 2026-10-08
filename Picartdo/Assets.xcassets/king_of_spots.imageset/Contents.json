@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "king_of_spots.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

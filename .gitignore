@@ -1,0 +1,16 @@
+# Xcode build output
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+
+# Mac
+.DS_Store
+
+# Secrets (keep real keys out of git)
+.env
+*.env.local
+
+# Large media (GitHub limit is 100 MB per file)
+*.mov
+.demo-frames/

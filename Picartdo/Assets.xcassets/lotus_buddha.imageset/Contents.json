@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "lotus_buddha.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

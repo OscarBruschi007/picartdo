@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "profile_cover_rapanui.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}
