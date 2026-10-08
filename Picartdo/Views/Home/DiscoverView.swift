@@ -92,7 +92,7 @@ extension Artist {
         tagline: "Painter, Draughtsman & Mixed Media",
         bio: "Abstract art.",
         location: "Toronto, ON",
-        bannerImage: "profile_cover_rapanui", avatarImage: "profile_photo_oscar",
+        bannerImage: "oscar_cover", avatarImage: "profile_photo_oscar",
         works: 26, followers: "1.4k", sales: "$24k", verified: true,
         availableForCommissions: true,
         rating: 5.0, reviewCount: 26,

@@ -76,9 +76,9 @@ enum PicardoEra: Int, CaseIterable {
 
     var color: Color {
         switch self {
-        case .blue:  return Color(red: 0.122, green: 0.235, blue: 0.302) // #1F3C4D
-        case .rose:  return Color(red: 0.788, green: 0.482, blue: 0.420) // #C97B6B
-        case .ochre: return Color(red: 0.612, green: 0.420, blue: 0.243) // #9C6B3E
+        case .blue:  return .adaptive(light: Color(red: 0.122, green: 0.235, blue: 0.302), dark: Color(hex: 0x8F,0xBC,0xE6)) // #1F3C4D
+        case .rose:  return .adaptive(light: Color(red: 0.788, green: 0.482, blue: 0.420), dark: Color(hex: 0xF0,0x8C,0x9A)) // #C97B6B
+        case .ochre: return .adaptive(light: Color(red: 0.612, green: 0.420, blue: 0.243), dark: Color(hex: 0xE8,0xB4,0x6A)) // #9C6B3E
         }
     }
 
@@ -87,57 +87,57 @@ enum PicardoEra: Int, CaseIterable {
     /// meant a whole different world on the canvas, not one brushstroke.
     var background: Color {
         switch self {
-        case .blue:  return Color(red: 0.914, green: 0.945, blue: 0.961) // #E9F1F5
-        case .rose:  return Color(red: 0.984, green: 0.918, blue: 0.898) // #FBEAE5
-        case .ochre: return Color(red: 1.000, green: 0.957, blue: 0.761) // #FFF4C2
+        case .blue:  return .adaptive(light: Color(red: 0.914, green: 0.945, blue: 0.961), dark: Color(hex: 0x0E,0x1F,0x3A)) // #E9F1F5
+        case .rose:  return .adaptive(light: Color(red: 0.984, green: 0.918, blue: 0.898), dark: Color(hex: 0x3A,0x0E,0x18)) // #FBEAE5
+        case .ochre: return .adaptive(light: Color(red: 1.000, green: 0.957, blue: 0.761), dark: Color(hex: 0x33,0x22,0x0C)) // #FFF4C2
         }
     }
 
     var surface: Color {
         switch self {
-        case .blue:  return Color(red: 0.945, green: 0.965, blue: 0.976) // #F1F6F9
-        case .rose:  return Color(red: 0.992, green: 0.945, blue: 0.933) // #FDF1EE
-        case .ochre: return Color(red: 1.000, green: 0.976, blue: 0.820) // #FFF9D1
+        case .blue:  return .adaptive(light: Color(red: 0.945, green: 0.965, blue: 0.976), dark: Color(hex: 0x13,0x28,0x48)) // #F1F6F9
+        case .rose:  return .adaptive(light: Color(red: 0.992, green: 0.945, blue: 0.933), dark: Color(hex: 0x47,0x13,0x1F)) // #FDF1EE
+        case .ochre: return .adaptive(light: Color(red: 1.000, green: 0.976, blue: 0.820), dark: Color(hex: 0x3E,0x2A,0x10)) // #FFF9D1
         }
     }
 
     var card: Color {
         switch self {
-        case .blue:  return Color(red: 0.969, green: 0.980, blue: 0.988) // #F7FAFC
-        case .rose:  return Color(red: 0.996, green: 0.969, blue: 0.961) // #FEF7F5
-        case .ochre: return Color(red: 1.000, green: 0.988, blue: 0.875) // #FFFCDF
+        case .blue:  return .adaptive(light: Color(red: 0.969, green: 0.980, blue: 0.988), dark: Color(hex: 0x18,0x31,0x55)) // #F7FAFC
+        case .rose:  return .adaptive(light: Color(red: 0.996, green: 0.969, blue: 0.961), dark: Color(hex: 0x55,0x19,0x27)) // #FEF7F5
+        case .ochre: return .adaptive(light: Color(red: 1.000, green: 0.988, blue: 0.875), dark: Color(hex: 0x4A,0x33,0x15)) // #FFFCDF
         }
     }
 
     var cardMid: Color {
         switch self {
-        case .blue:  return Color(red: 0.863, green: 0.910, blue: 0.933) // #DCE8EE
-        case .rose:  return Color(red: 0.953, green: 0.851, blue: 0.820) // #F3D9D1
-        case .ochre: return Color(red: 0.980, green: 0.945, blue: 0.730) // original cardMid
+        case .blue:  return .adaptive(light: Color(red: 0.863, green: 0.910, blue: 0.933), dark: Color(hex: 0x22,0x3F,0x6A)) // #DCE8EE
+        case .rose:  return .adaptive(light: Color(red: 0.953, green: 0.851, blue: 0.820), dark: Color(hex: 0x6B,0x22,0x33)) // #F3D9D1
+        case .ochre: return .adaptive(light: Color(red: 0.980, green: 0.945, blue: 0.730), dark: Color(hex: 0x5E,0x41,0x1C)) // original cardMid
         }
     }
 
     var border: Color {
         switch self {
-        case .blue:  return Color(red: 0.718, green: 0.788, blue: 0.824) // #B7C9D2
-        case .rose:  return Color(red: 0.867, green: 0.698, blue: 0.655) // #DDB2A7
-        case .ochre: return Color(red: 0.880, green: 0.820, blue: 0.620) // original border
+        case .blue:  return .adaptive(light: Color(red: 0.718, green: 0.788, blue: 0.824), dark: Color(hex: 0x2E,0x4F,0x80)) // #B7C9D2
+        case .rose:  return .adaptive(light: Color(red: 0.867, green: 0.698, blue: 0.655), dark: Color(hex: 0x80,0x2E,0x42)) // #DDB2A7
+        case .ochre: return .adaptive(light: Color(red: 0.880, green: 0.820, blue: 0.620), dark: Color(hex: 0x75,0x54,0x26)) // original border
         }
     }
 
     var text: Color {
         switch self {
-        case .blue:  return Color(red: 0.043, green: 0.102, blue: 0.133) // #0B1A22
-        case .rose:  return Color(red: 0.141, green: 0.063, blue: 0.035) // #241009
-        case .ochre: return Color(red: 0.120, green: 0.080, blue: 0.060) // original text
+        case .blue:  return .adaptive(light: Color(red: 0.043, green: 0.102, blue: 0.133), dark: Color(hex: 0xEE,0xF3,0xFA)) // #0B1A22
+        case .rose:  return .adaptive(light: Color(red: 0.141, green: 0.063, blue: 0.035), dark: Color(hex: 0xFB,0xEC,0xEE)) // #241009
+        case .ochre: return .adaptive(light: Color(red: 0.120, green: 0.080, blue: 0.060), dark: Color(hex: 0xFB,0xF1,0xDC)) // original text
         }
     }
 
     var textSecondary: Color {
         switch self {
-        case .blue:  return Color(red: 0.298, green: 0.392, blue: 0.439) // #4C6470
-        case .rose:  return Color(red: 0.431, green: 0.290, blue: 0.259) // #6E4A42
-        case .ochre: return Color(red: 0.450, green: 0.380, blue: 0.320) // original secondary
+        case .blue:  return .adaptive(light: Color(red: 0.298, green: 0.392, blue: 0.439), dark: Color(hex: 0xA4,0xB8,0xD4)) // #4C6470
+        case .rose:  return .adaptive(light: Color(red: 0.431, green: 0.290, blue: 0.259), dark: Color(hex: 0xD9,0xA9,0xB2)) // #6E4A42
+        case .ochre: return .adaptive(light: Color(red: 0.450, green: 0.380, blue: 0.320), dark: Color(hex: 0xD6,0xBE,0x93)) // original secondary
         }
     }
 
@@ -184,5 +184,21 @@ final class EraOverrideStore {
 
     private init() {
         overrideIndex = UserDefaults.standard.object(forKey: Self.key) as? Int
+    }
+}
+
+// MARK: - Dark mode
+
+extension Color {
+    /// A color that follows the system appearance. Each era has a light palette and a
+    /// matching dark one, so tapping the wordmark changes the mood in both modes.
+    static func adaptive(light: Color, dark: Color) -> Color {
+        Color(UIColor { traits in
+            traits.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light)
+        })
+    }
+
+    init(hex r: Int, _ g: Int, _ b: Int) {
+        self.init(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
     }
 }

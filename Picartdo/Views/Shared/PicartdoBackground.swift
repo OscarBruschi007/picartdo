@@ -16,7 +16,7 @@ struct PicartdoBackground: View {
     private var isDark: Bool { colorScheme == .dark }
 
     var body: some View {
-        (isDark ? Color.black : Color.picardoBackground)
+        Color.picardoBackground
     }
 }
 

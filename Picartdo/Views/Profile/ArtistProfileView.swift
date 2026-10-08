@@ -159,81 +159,32 @@ struct ReviewCard: View {
 struct ArtistStoreView: View {
     let artist: Artist
 
-    @Environment(WishlistStore.self) private var wishlist
-    @State private var mediaTab: ProfileMediaTab = .posts
-    @Namespace private var profileTabs
-    @State private var isFollowing = false
+    @State private var isMuse = false
+    @State private var confirmRelease = false
     @State private var showCommission = false
-    @State private var showReviews = false
     @State private var showMessages = false
-    @State private var listingFeed: ListingFeedLaunch?
-    @State private var buyArtwork: Artwork?
-    @State private var activeStory: ArtistStory?
 
     var body: some View {
-        ZStack {
-            PicartdoBackground()
-                .ignoresSafeArea()
-
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    ProfileGalleryHeader(
-                        person: person,
-                        primaryTitle: isFollowing ? "FOLLOWING" : "FOLLOW",
-                        onPrimary: {
-                            withAnimation(PicardoMotion.quick) {
-                                isFollowing.toggle()
-                            }
-                        },
-                        secondaryTitle: "MESSAGE",
-                        onSecondary: { showMessages = true }
-                    )
-                    .padding(.bottom, 10)
-
-                    ProfileHighlightsRow(stories: highlightStories) { story in
-                        activeStory = story
-                    }
-                    .padding(.bottom, 10)
-
-                    ProfileTabBar(tab: $mediaTab, namespace: profileTabs)
-                        .padding(.bottom, 1)
-
-                    if mediaTab == .selling {
-                        ProfileListingStack(
-                            items: feedItems,
-                            onOpen: { artwork in
-                                Haptics.tap()
-                                listingFeed = ListingFeedLaunch(id: artwork.id, items: feedItems)
-                            },
-                            onBuy: { buyArtwork = $0 }
-                        )
-                        .padding(.bottom, 8)
-                    } else {
-                        MediaGrid(
-                            items: feedItems.map(\.mediaGridItem),
-                            emptyTitle: "No images yet",
-                            emptyDetail: "Posts and photos will land here."
-                        ) { item in
-                            Haptics.tap()
-                            listingFeed = ListingFeedLaunch(id: item.id, items: feedItems)
-                        }
-                        .padding(.bottom, 8)
-                    }
-
-                    ProfileMoreLinks(items: moreLinks)
-                        .padding(.top, 36)
-
-                    Text("On PICARDO · \(artist.location)")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 16)
-                        .padding(.bottom, 40)
-
-                    Color.clear.frame(height: 24)
+        ProfilePageBody(config: ProfilePageConfig(
+            person: person,
+            personal: false,
+            primaryTitle: isMuse ? "RELEASE MUSE" : "MUSE",
+            onPrimary: {
+                if isMuse {
+                    confirmRelease = true
+                } else {
+                    withAnimation(PicardoMotion.quick) { isMuse = true }
                 }
-            }
-        }
+            },
+            secondaryTitle: "MESSAGE",
+            onSecondary: { showMessages = true },
+            stories: artist.highlightStories,
+            artworks: artistArtworks,
+            reviews: ArtistReview.samples(for: artist),
+            thoughtsAuthor: artist.name,
+            extraLinks: artist.availableForCommissions ? [("Book", { showCommission = true })] : [],
+            footer: "On PICARDO · \(artist.location)"
+        ))
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .picardoPushedScreen()
@@ -244,22 +195,16 @@ struct ArtistStoreView: View {
         .navigationDestination(isPresented: $showMessages) {
             ArtistChatView(artist: artist)
         }
+        .confirmationDialog("Release this muse?", isPresented: $confirmRelease, titleVisibility: .visible) {
+            Button("Release", role: .destructive) {
+                withAnimation(PicardoMotion.quick) { isMuse = false }
+            }
+            Button("Keep", role: .cancel) {}
+        }
         .sheet(isPresented: $showCommission) {
             NavigationStack { CommissionRequestView(artist: artist) }
                 .presentationDetents([.large])
                 .presentationCornerRadius(28)
-        }
-        .sheet(isPresented: $showReviews) {
-            ArtistReviewsSheet(artist: artist)
-        }
-        .sheet(item: $buyArtwork) { artwork in
-            BuyConfirmationSheet(artwork: artwork)
-        }
-        .fullScreenCover(item: $listingFeed) { launch in
-            ProfileListingFeedView(launch: launch)
-        }
-        .fullScreenCover(item: $activeStory) { story in
-            StoryViewer(story: story) { activeStory = nil }
         }
     }
 
@@ -281,22 +226,6 @@ struct ArtistStoreView: View {
         )
     }
 
-    private var highlightStories: [ArtistStory] {
-        let titles = ["Studio", "Process", "Shows", "Sold"]
-        let photos = artist.storePhotos
-        return titles.enumerated().map { index, title in
-            let cover = photos.indices.contains(index) ? photos[index] : artist.avatarImage
-            let start = min(index, max(photos.count - 1, 0))
-            let frames = Array(photos.dropFirst(start).prefix(3))
-            return ArtistStory(
-                id: "\(artist.id.uuidString)-\(title)",
-                title: title,
-                coverImage: cover,
-                frames: frames.isEmpty ? [cover] : frames
-            )
-        }
-    }
-
     private var artistArtworks: [Artwork] {
         let matched = Artwork.samples.filter { $0.artistName == artist.name && !$0.imageName.isEmpty }
         if !matched.isEmpty { return matched }
@@ -312,49 +241,4 @@ struct ArtistStoreView: View {
             )
         }
     }
-
-    private var feedItems: [Artwork] {
-        switch mediaTab {
-        case .selling:
-            return artistArtworks.filter { !$0.isSold }
-        default:
-            return artistArtworks
-        }
-    }
-
-    private var moreLinks: [(String, () -> Void)] {
-        var items: [(String, () -> Void)] = [("Reviews", { showReviews = true })]
-        if artist.availableForCommissions {
-            items.append(("Book", { showCommission = true }))
-        }
-        return items
-    }
 }
-
-private struct ArtistReviewsSheet: View {
-    let artist: Artist
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(ArtistReview.samples(for: artist)) { review in
-                        ReviewCard(review: review)
-                    }
-                }
-                .padding(16)
-                .padding(.top, 8)
-            }
-            .background(Color.picardoBackground)
-            .navigationTitle("Reviews")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-}
-

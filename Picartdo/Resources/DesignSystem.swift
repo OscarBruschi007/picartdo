@@ -130,7 +130,8 @@ struct PicardoPrimaryButton: View {
             Text(title)
                 .font(PicardoType.cta())
                 .kerning(1)
-                .foregroundStyle(.white)
+                // Inverse of the era text color, so it reads in light and dark mode.
+                .foregroundStyle(Color.picardoBackground)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 15)
                 .background(enabled ? Color.picardoText : Color.picardoTextSecondary)
