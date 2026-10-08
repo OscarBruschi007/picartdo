@@ -14,3 +14,4 @@ xcuserdata/
 # Large media (GitHub limit is 100 MB per file)
 *.mov
 .demo-frames/
+.git-old-backup/
