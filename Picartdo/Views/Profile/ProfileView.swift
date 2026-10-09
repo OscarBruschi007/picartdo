@@ -23,6 +23,7 @@ struct ProfileView: View {
                     avatarAsset: Artist.oscar.avatarImage,
                     coverAsset: Artist.oscar.bannerImage,
                     customAvatar: identity.avatarImage,
+                    customCover: identity.coverImage,
                     verified: true,
                     followers: Artist.oscar.followers,
                     following: Artist.oscar.followingCount,
@@ -73,14 +74,25 @@ struct ProfileView: View {
                 }
                 await marketplace.load(for: session.profile?.id)
             }
-            .navigationDestination(isPresented: $showMessages) {
-                DirectMessagesView()
-            }
             .onChange(of: showMessages) { _, presented in
                 hideTabBar.wrappedValue = presented
             }
-            .sheet(isPresented: $showEdit) { EditProfileSheet(identity: $identity) }
-            .sheet(isPresented: $showSettings) { ProfileSettingsSheet() }
+            .fullScreenCover(isPresented: $showMessages) {
+                DirectMessagesView(isPresented: $showMessages)
+                    .presentationBackground(.clear)
+            }
+            .fullScreenCover(isPresented: $showEdit, onDismiss: {
+                identity = ProfileIdentity.load()
+            }) {
+                EditProfileSheet(identity: $identity, isPresented: $showEdit)
+                    .presentationBackground(.clear)
+            }
+            .fullScreenCover(isPresented: $showSettings, onDismiss: {
+                identity = ProfileIdentity.load()
+            }) {
+                ProfileSettingsSheet()
+                    .presentationBackground(.clear)
+            }
         }
     }
 }

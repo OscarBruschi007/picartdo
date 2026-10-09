@@ -4,6 +4,7 @@ import SwiftUI
 struct ProfileStoriesRow: View {
     let stories: [ArtistStory]
     var onOpen: (ArtistStory) -> Void
+    var onMessage: (() -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -41,6 +42,22 @@ struct ProfileStoriesRow: View {
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("\(story.title) story")
+                        .contextMenu {
+                            Button {
+                                Haptics.tap()
+                                onOpen(story)
+                            } label: {
+                                Label("View story", systemImage: "circle.dashed")
+                            }
+                            if onMessage != nil {
+                                Button {
+                                    Haptics.tap()
+                                    onMessage?()
+                                } label: {
+                                    Label("Message", systemImage: "envelope")
+                                }
+                            }
+                        }
                     }
                 }
                 .padding(.horizontal, 20)
@@ -51,11 +68,13 @@ struct ProfileStoriesRow: View {
 
 struct StoryViewer: View {
     let story: ArtistStory
+    var artist: Artist? = nil
     var onClose: () -> Void
 
     @State private var index = 0
     @State private var progress: CGFloat = 0
     @State private var paused = false
+    @State private var showMessage = false
 
     private let duration: TimeInterval = 3.2
 
@@ -123,6 +142,14 @@ struct StoryViewer: View {
                     advance()
                 }
             }
+            .safeAreaInset(edge: .bottom) {
+                if artist != nil {
+                    storyMessageBar
+                }
+            }
+        }
+        .onChange(of: showMessage) { _, open in
+            paused = open
         }
         .onReceive(Timer.publish(every: 0.05, on: .main, in: .common).autoconnect()) { _ in
             guard !paused else { return }
@@ -130,6 +157,47 @@ struct StoryViewer: View {
             if progress >= 1 { advance() }
         }
         .statusBarHidden(true)
+        .sheet(isPresented: $showMessage) {
+            if let artist {
+                NavigationStack {
+                    ArtistChatView(artist: artist)
+                }
+            }
+        }
+    }
+
+    private var storyMessageBar: some View {
+        HStack(spacing: 10) {
+            Button {
+                Haptics.tap()
+                showMessage = true
+            } label: {
+                Text("Send message")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .overlay(
+                        Capsule().strokeBorder(.white.opacity(0.45), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                Haptics.tap()
+                showMessage = true
+            } label: {
+                Image(systemName: "paperplane")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Message")
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 10)
     }
 
     private func width(for i: Int) -> CGFloat {

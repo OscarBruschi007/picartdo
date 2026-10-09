@@ -16,6 +16,7 @@ struct MediaGrid: View {
     var emptyTitle: String
     var emptyDetail: String
     var onSelect: (MediaGridItem) -> Void
+    var onMessage: ((MediaGridItem) -> Void)? = nil
 
     private let spacing: CGFloat = 12
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
@@ -32,6 +33,15 @@ struct MediaGrid: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(accessibility(for: item))
+                    .contextMenu {
+                        if let onMessage {
+                            Button {
+                                onMessage(item)
+                            } label: {
+                                Label("Message", systemImage: "envelope")
+                            }
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 12)
@@ -121,6 +131,7 @@ struct ProfileListingStack: View {
     let items: [Artwork]
     var onOpen: (Artwork) -> Void
     var onBuy: ((Artwork) -> Void)? = nil
+    var allowsMessage: Bool = true
 
     @Environment(WishlistStore.self) private var wishlist
 
@@ -140,7 +151,8 @@ struct ProfileListingStack: View {
                         onSave: { wishlist.toggle(artwork) },
                         onBuy: artwork.isSold ? nil : { onBuy?(artwork) },
                         onOpen: { onOpen(artwork) },
-                        eyebrow: artwork.isSold ? "SOLD" : artwork.category.rawValue.uppercased()
+                        eyebrow: artwork.isSold ? "SOLD" : artwork.category.rawValue.uppercased(),
+                        allowsMessage: allowsMessage
                     )
                 }
             }
@@ -152,6 +164,7 @@ struct ProfileListingStack: View {
 
 struct ProfileListingFeedView: View {
     let launch: ListingFeedLaunch
+    var allowsMessage: Bool = true
     @Environment(\.dismiss) private var dismiss
     @Environment(WishlistStore.self) private var wishlist
     @State private var buyArtwork: Artwork?
@@ -172,7 +185,8 @@ struct ProfileListingFeedView: View {
                                     Haptics.tap()
                                     openedArtwork = artwork
                                 },
-                                eyebrow: artwork.isSold ? "SOLD" : artwork.category.rawValue.uppercased()
+                                eyebrow: artwork.isSold ? "SOLD" : artwork.category.rawValue.uppercased(),
+                                allowsMessage: allowsMessage
                             )
                             .id(artwork.id)
                         }

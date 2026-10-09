@@ -10,6 +10,7 @@ struct ProfileGalleryPerson {
     var avatarAsset: String
     var coverAsset: String = ""
     var customAvatar: UIImage? = nil
+    var customCover: UIImage? = nil
     var verified: Bool
     var followers: String
     var following: String
@@ -92,8 +93,9 @@ struct ProfileGalleryHeader: View {
         Color.picardoGold,
     ]
 
-    private let avatarSize: CGFloat = 96
-    private let coverHeight: CGFloat = 270
+    private let avatarSize: CGFloat = 168
+    private static let starGold = Color(red: 0.98, green: 0.76, blue: 0.18)
+    private let coverHeight: CGFloat = 340
     private var avatarKind: ProfileAvatarShapeKind { shapeKind }
     private var coverShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -105,41 +107,28 @@ struct ProfileGalleryHeader: View {
         VStack(alignment: .leading, spacing: 0) {
             coverCard
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(person.bio)
-                    .font(.system(size: 15))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("@\(person.handle) · \(person.location)")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-
-                HStack(spacing: 6) {
-                    Text("\(person.followers) followers")
-                    Text("·")
-                    Text("\(person.following) following")
-                    Text("·")
-                    HStack(spacing: 2) {
-                        ForEach(1...5, id: \.self) { star in
-                            Image(systemName: star <= person.starCount ? "star.fill" : "star")
-                        }
+            HStack(spacing: 10) {
+                HStack(spacing: 3) {
+                    ForEach(1...5, id: \.self) { star in
+                        Image(systemName: star <= person.starCount ? "star.fill" : "star")
                     }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("\(person.starCount) out of 5 stars")
                 }
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.picardoGold)
+                .foregroundStyle(Self.starGold)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(person.starCount) out of 5 stars")
 
-                HStack(spacing: 8) {
-                    pillButton(primaryTitle, filled: true, action: onPrimary)
-                    pillButton(secondaryTitle, filled: false, action: onSecondary)
-                }
-                .padding(.top, 8)
+                Text("·")
+                    .foregroundStyle(Color.picardoNeonRed)
+
+                Text("\(person.following) following")
+                    .foregroundStyle(Color.picardoNeonRed)
             }
+            .font(.system(size: 17, weight: .bold))
+            .frame(maxWidth: .infinity)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
             .padding(.horizontal, 18)
-            .padding(.top, 6)
+            .padding(.top, 10)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .onAppear {
@@ -148,84 +137,139 @@ struct ProfileGalleryHeader: View {
         }
     }
 
-    private func pillButton(_ title: String, filled: Bool, action: @escaping () -> Void) -> some View {
+    private func coverIconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button {
             Haptics.tap()
             action()
         } label: {
-            Text(title.capitalized)
+            Image(systemName: systemName)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(filled ? Color.picardoBackground : Color.picardoGold)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 9)
-                .background {
-                    if filled {
-                        Capsule().fill(Color.picardoGold)
-                    } else {
-                        Capsule().strokeBorder(Color.picardoGold, lineWidth: 1.5)
-                    }
-                }
-                .contentShape(Capsule())
+                .foregroundStyle(.white)
+                .frame(width: 36, height: 36)
+                .background(.black.opacity(0.38), in: Circle())
+                .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
         }
-        .buttonStyle(PicardoPressStyle())
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
     }
 
     @ViewBuilder
     private var coverCard: some View {
-        // Tall liquid-glass card: cover photo behind, photo and name centered on top.
-        ZStack {
-            ArtworkImage(imageName: person.coverAsset, contentMode: .fill, maxDimension: 1200)
-            LinearGradient(
-                colors: [.black.opacity(0.05), .black.opacity(0.25), .black.opacity(0.6)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            VStack(spacing: 12) {
+        // Tall liquid-glass card. The cover photo is locked to the card's size so a
+        // .fill image can never grow the card and push the overlays out of view.
+        Color.clear
+            .frame(maxWidth: .infinity)
+            .frame(height: coverHeight)
+            .background {
+                Group {
+                    if let custom = person.customCover {
+                        Image(uiImage: custom).resizable().scaledToFill()
+                    } else {
+                        ArtworkImage(imageName: person.coverAsset, contentMode: .fill, maxDimension: 1200)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .allowsHitTesting(false)
+            }
+            .overlay {
+                LinearGradient(
+                    colors: [.black.opacity(0.25), .black.opacity(0.1), .black.opacity(0.55)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .allowsHitTesting(false)
+            }
+            // Profile photo sits in the exact center of the cover.
+            .overlay(alignment: .center) {
                 avatarButton
+            }
+            .overlay(alignment: .top) {
+                HStack(spacing: 8) {
+                    coverIconButton(
+                        systemName: "envelope.fill",
+                        label: "Messages",
+                        action: onSecondary
+                    )
+                    Spacer(minLength: 8)
+                    Text("@\(person.handle)")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.12), in: Capsule())
+                        .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
+                        .glassEffect(.clear, in: Capsule())
+                    Spacer(minLength: 8)
+                    if personal {
+                        Color.clear.frame(width: 36, height: 36)
+                    } else {
+                        Button {
+                            Haptics.tap()
+                            onPrimary()
+                        } label: {
+                            Text(primaryTitle.capitalized)
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 8)
+                                .background(.black.opacity(0.38), in: Capsule())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(primaryTitle)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+            }
+            // Name along the bottom of the cover.
+            .overlay(alignment: .bottom) {
                 nameRow
                     .shadow(color: .black.opacity(0.5), radius: 6, y: 1)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 18)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 24)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: coverHeight)
-        .clipShape(coverShape)
-        .padding(6)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-        .padding(.horizontal, 12)
-        .padding(.top, 4)
-        .padding(.bottom, 8)
+            .clipShape(coverShape)
+            .padding(.horizontal, 12)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
     }
 
     @ViewBuilder
     private var nameRow: some View {
-        let label = HStack(spacing: 8) {
-            Text(person.name)
-                .font(.system(size: 26, weight: .black, design: .serif))
-                .foregroundStyle(nameColors[safe: nameColorIndex] ?? Color.picardoText)
-                .multilineTextAlignment(.center)
-            if person.verified {
-                Image(systemName: "paintbrush.pointed.fill")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(6)
-                    .background(Color.picardoNeonRed, in: Circle())
-                    .accessibilityLabel("Verified artist")
+        HStack(spacing: 8) {
+            Button {
+                Haptics.select()
+                withAnimation(PicardoMotion.quick) {
+                    nameColorIndex = (nameColorIndex + 1) % nameColors.count
+                    UserDefaults.standard.set(nameColorIndex, forKey: colorKey)
+                }
+            } label: {
+                Text(person.name)
+                    .font(.system(size: 34, weight: .black, design: .serif))
+                    .foregroundStyle(nameColors[safe: nameColorIndex] ?? Color.picardoText)
+                    .multilineTextAlignment(.center)
             }
-        }
+            .buttonStyle(.plain)
+            .accessibilityLabel("\(person.name), tap to change color")
 
-        Button {
-            Haptics.select()
-            withAnimation(PicardoMotion.quick) {
-                nameColorIndex = (nameColorIndex + 1) % nameColors.count
-                UserDefaults.standard.set(nameColorIndex, forKey: colorKey)
+            if personal || person.verified {
+                Button {
+                    Haptics.tap()
+                    if personal { onPrimary() }
+                } label: {
+                    Image(systemName: "paintbrush.pointed.fill")
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(7)
+                        .background(Color.picardoNeonRed, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(personal ? "Edit profile" : "Verified artist")
+                .disabled(!personal)
             }
-        } label: {
-            label
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(person.name)\(person.verified ? ", verified artist" : ""), tap to change color")
         .frame(maxWidth: .infinity, alignment: .center)
     }
 
@@ -242,17 +286,14 @@ struct ProfileGalleryHeader: View {
                 if let custom = person.customAvatar {
                     Image(uiImage: custom).resizable().scaledToFill()
                 } else {
-                    ArtworkImage(imageName: person.avatarAsset, contentMode: .fill, maxDimension: 600)
+                    ArtworkImage(imageName: person.avatarAsset, contentMode: .fill, maxDimension: 800)
                 }
             }
             .frame(width: avatarSize, height: avatarSize, alignment: .center)
             .clipShape(ProfileAvatarMask(kind: avatarKind))
-            .padding(4)
-            .background(ProfileAvatarMask(kind: avatarKind).fill(Color.picardoBackground))
             .overlay(
                 ProfileAvatarMask(kind: avatarKind)
                     .stroke(Color.picardoNeonRed.opacity(0.85), lineWidth: 2)
-                    .padding(4)
             )
             .contentShape(ProfileAvatarMask(kind: avatarKind))
         }

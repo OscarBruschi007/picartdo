@@ -31,6 +31,7 @@ struct ProfilePageBody: View {
     @Namespace private var profileTabs
     @State private var listingFeed: ListingFeedLaunch?
     @State private var buyArtwork: Artwork?
+    @State private var messageArtwork: Artwork?
     @State private var activeStory: ArtistStory?
     @State private var showThoughts = false
     @State private var showReviews = false
@@ -52,11 +53,6 @@ struct ProfilePageBody: View {
                     )
                     .padding(.bottom, 10)
 
-                    ProfileHighlightsRow(stories: config.stories) { story in
-                        activeStory = story
-                    }
-                    .padding(.bottom, 10)
-
                     ProfileTabBar(tab: $mediaTab, namespace: profileTabs)
                         .padding(.bottom, 1)
 
@@ -67,18 +63,24 @@ struct ProfilePageBody: View {
                                 Haptics.tap()
                                 listingFeed = ListingFeedLaunch(id: artwork.id, items: feedItems)
                             },
-                            onBuy: { buyArtwork = $0 }
+                            onBuy: { buyArtwork = $0 },
+                            allowsMessage: !config.personal
                         )
                         .padding(.bottom, 8)
                     } else {
                         MediaGrid(
                             items: feedItems.map(\.mediaGridItem),
                             emptyTitle: "No images yet",
-                            emptyDetail: "Posts and photos will land here."
-                        ) { item in
-                            Haptics.tap()
-                            listingFeed = ListingFeedLaunch(id: item.id, items: feedItems)
-                        }
+                            emptyDetail: "Posts and photos will land here.",
+                            onSelect: { item in
+                                Haptics.tap()
+                                listingFeed = ListingFeedLaunch(id: item.id, items: feedItems)
+                            },
+                            onMessage: config.personal ? nil : { item in
+                                Haptics.tap()
+                                messageArtwork = feedItems.first { $0.id == item.id }
+                            }
+                        )
                         .padding(.bottom, 8)
                     }
 
@@ -109,11 +111,15 @@ struct ProfilePageBody: View {
             BuyConfirmationSheet(artwork: artwork)
         }
         .fullScreenCover(item: $listingFeed) { launch in
-            ProfileListingFeedView(launch: launch)
+            ProfileListingFeedView(launch: launch, allowsMessage: !config.personal)
         }
         .fullScreenCover(item: $activeStory) { story in
-            StoryViewer(story: story) { activeStory = nil }
+            StoryViewer(
+                story: story,
+                artist: config.personal ? nil : Artist.named(config.person.name)
+            ) { activeStory = nil }
         }
+        .messageComposer(artwork: $messageArtwork)
     }
 
     private var feedItems: [Artwork] {
@@ -246,6 +252,18 @@ struct ComposeThreadSheet: View {
 // MARK: - Highlights for any artist
 
 extension Artist {
+    /// Home story ring — a short set of studio photos for Instagram-style viewing.
+    var feedStory: ArtistStory {
+        let photos = storePhotos.isEmpty ? [avatarImage, bannerImage].filter { !$0.isEmpty } : Array(storePhotos.prefix(4))
+        let cover = avatarImage.isEmpty ? (photos.first ?? bannerImage) : avatarImage
+        return ArtistStory(
+            id: "\(id.uuidString)-feed",
+            title: firstName,
+            coverImage: cover,
+            frames: photos.isEmpty ? [cover] : photos
+        )
+    }
+
     /// Studio / Process / Shows / Sold highlight bubbles, built from the artist's photos.
     var highlightStories: [ArtistStory] {
         let titles = ["Studio", "Process", "Shows", "Sold"]

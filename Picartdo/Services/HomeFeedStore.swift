@@ -22,6 +22,8 @@ final class HomeFeedStore {
     private(set) var storyArtists: [Artist]
     private(set) var moreListings: [Artwork]
     private(set) var studioVideos: [ArtistPost]
+    private(set) var articles: [HomeArticle]
+    private(set) var cityEvents: [ArtEventItem]
     private(set) var layout: [HomeLayoutBlock]
 
     private var lastRefresh = Date.distantPast
@@ -33,6 +35,8 @@ final class HomeFeedStore {
         storyArtists = Self.storyCast
         moreListings = []
         studioVideos = ArtistPost.studioVideos
+        articles = Array(HomeArticle.samples.prefix(4))
+        cityEvents = Array(ArtEventItem.samples.prefix(3))
         layout = HomeLayoutBlock.allCases
         refresh()
     }
@@ -61,6 +65,8 @@ final class HomeFeedStore {
         moreListings = rest
         studioVideos = ArtistPost.studioVideos.shuffled()
         storyArtists = Self.storyCast
+        articles = Array(HomeArticle.samples.shuffled().prefix(4))
+        cityEvents = Array(ArtEventItem.samples.shuffled().prefix(3))
         layout = shuffledLayout()
 
         lastRefresh = Date()

@@ -97,6 +97,14 @@ final class ArtworkImageCache: @unchecked Sendable {
         session = URLSession(configuration: config)
     }
 
+    func clear() {
+        memory.removeAllObjects()
+        lock.withLock { inFlight.removeAll() }
+        try? FileManager.default.removeItem(at: diskDirectory)
+        try? FileManager.default.createDirectory(at: diskDirectory, withIntermediateDirectories: true)
+        session.configuration.urlCache?.removeAllCachedResponses()
+    }
+
     static func key(for source: ArtworkImage.Source, maxDimension: CGFloat = 1080) -> String {
         let base: String
         switch source {

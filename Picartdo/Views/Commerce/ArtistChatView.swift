@@ -17,6 +17,14 @@ struct ArtistChatView: View {
         self.init(partnerID: artist.id, partnerName: artist.name, note: artist.tagline)
     }
 
+    init(partnerName: String, note: String = "") {
+        self.init(
+            partnerID: Artist.named(partnerName)?.id ?? UUID(),
+            partnerName: partnerName,
+            note: note
+        )
+    }
+
     private init(partnerID: UUID, partnerName: String, note: String) {
         self.partnerID = partnerID
         self.partnerName = partnerName
@@ -36,7 +44,8 @@ struct ArtistChatView: View {
             category: .artist,
             relationTag: "Artist",
             hasStory: false,
-            messages: []
+            messages: [],
+            avatarImage: Artist.named(partnerName)?.avatarImage
         ))
     }
 
@@ -59,6 +68,40 @@ struct ArtistChatView: View {
         }
         if let last = conversation.messages.last {
             conversation.lastMessage = last.text
+        }
+    }
+}
+
+extension View {
+    func messageComposer(artwork: Binding<Artwork?>) -> some View {
+        sheet(item: artwork) { piece in
+            NavigationStack {
+                ArtistChatView(artwork: piece)
+            }
+        }
+    }
+
+    func messageComposer(artist: Binding<Artist?>) -> some View {
+        sheet(item: artist) { person in
+            NavigationStack {
+                ArtistChatView(artist: person)
+            }
+        }
+    }
+
+    func messageComposer(isPresented: Binding<Bool>, artwork: Artwork) -> some View {
+        sheet(isPresented: isPresented) {
+            NavigationStack {
+                ArtistChatView(artwork: artwork)
+            }
+        }
+    }
+
+    func messageComposer(isPresented: Binding<Bool>, artist: Artist) -> some View {
+        sheet(isPresented: isPresented) {
+            NavigationStack {
+                ArtistChatView(artist: artist)
+            }
         }
     }
 }

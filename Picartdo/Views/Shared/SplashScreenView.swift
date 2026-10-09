@@ -15,9 +15,9 @@ struct SplashScreenView: View {
     @State private var washDrift: CGFloat = -1
     @State private var backdropOpacity: Double = 1
     // Wordmark
-    @State private var writeProgress: CGFloat = 0
-    @State private var tracking: CGFloat = 7
-    @State private var rise: CGFloat = 8
+    @State private var writeProgress: CGFloat = 1
+    @State private var tracking: CGFloat = 2.5
+    @State private var rise: CGFloat = 0
     @State private var landed = false
     @State private var wordmarkOpacity: Double = 1
     @State private var homeWordmarkFrame: CGRect = .zero
@@ -102,9 +102,10 @@ struct SplashScreenView: View {
     private var splashLayer: some View {
         GeometryReader { geo in
             let origin = geo.frame(in: .global).origin
-            let heroSize = min(geo.size.width, 440) * 0.115
+            // Matches the LaunchWordmark image exactly, so launch screen → splash has no jump.
+            let heroSize: CGFloat = 48
             let heroScale = heroSize / Self.homeWordmarkSize
-            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height * 0.47)
+            let center = CGPoint(x: geo.size.width / 2, y: geo.size.height / 2)
             let canLand = landed && homeWordmarkFrame != .zero
             let target = CGPoint(
                 x: homeWordmarkFrame.midX - origin.x,
@@ -185,31 +186,23 @@ struct SplashScreenView: View {
     }
 
     private func playFull() async throws {
-        // Let the first frame of the splash reach the screen before anything moves.
-        try await Task.sleep(for: .milliseconds(60))
-        withAnimation(.easeInOut(duration: 0.9)) { canvasSettled = 1 }
-        withAnimation(.easeOut(duration: 1.2)) { washOpacity = 1 }
-        withAnimation(.easeInOut(duration: 2.6)) { washDrift = 1 }
+        // The launch screen already showed the wordmark; carry on from it without redrawing.
+        try await Task.sleep(for: .milliseconds(40))
+        withAnimation(.easeInOut(duration: 0.7)) { canvasSettled = 1 }
+        withAnimation(.easeOut(duration: 0.9)) { washOpacity = 1 }
+        withAnimation(.easeInOut(duration: 1.8)) { washDrift = 1 }
 
-        try await Task.sleep(for: .milliseconds(180))
-        withAnimation(Self.write) { writeProgress = 1 }
-        withAnimation(Self.settle) {
-            tracking = Self.homeTracking
-            rise = 0
-        }
+        try await Task.sleep(for: .milliseconds(120))
+        withAnimation(.timingCurve(0.65, 0, 0.35, 1, duration: 0.5)) { ruleWidth = 36 }
 
-        try await Task.sleep(for: .milliseconds(560))
-        withAnimation(.timingCurve(0.65, 0, 0.35, 1, duration: 0.6)) { ruleWidth = 36 }
-
-        try await Task.sleep(for: .milliseconds(180))
-        withAnimation(.easeOut(duration: 0.5)) {
+        try await Task.sleep(for: .milliseconds(150))
+        withAnimation(.easeOut(duration: 0.4)) {
             taglineOpacity = 1
             taglineRise = 0
         }
 
-        // Mount the app underneath, invisible, during the still moment so any first-layout
-        // work can't stutter the motion. Its header reports where the wordmark will land.
-        try await Task.sleep(for: .milliseconds(250))
+        // Mount the app underneath during the still moment so first layout can't stutter the motion.
+        try await Task.sleep(for: .milliseconds(150))
         mainAppReady = true
         try await Task.sleep(for: .milliseconds(450))
         try Task.checkCancellation()
@@ -217,17 +210,11 @@ struct SplashScreenView: View {
     }
 
     private func playShort() async throws {
-        canvasSettled = 1
-        try await Task.sleep(for: .milliseconds(60))
-        withAnimation(.easeOut(duration: 0.5)) { washOpacity = 1 }
-        withAnimation(.timingCurve(0.65, 0, 0.35, 1, duration: 0.55)) { writeProgress = 1 }
-        withAnimation(.timingCurve(0.16, 1, 0.3, 1, duration: 0.7)) {
-            tracking = Self.homeTracking
-            rise = 0
-        }
-        try await Task.sleep(for: .milliseconds(550))
+        withAnimation(.easeInOut(duration: 0.4)) { canvasSettled = 1 }
+        withAnimation(.easeOut(duration: 0.4)) { washOpacity = 1 }
+        try await Task.sleep(for: .milliseconds(120))
         mainAppReady = true
-        try await Task.sleep(for: .milliseconds(200))
+        try await Task.sleep(for: .milliseconds(280))
         try Task.checkCancellation()
         await performHandoff()
     }

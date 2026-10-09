@@ -31,9 +31,9 @@ struct DMTheme {
         switch scheme {
         case .dark:
             return DMTheme(
-                background: .black,
-                text: .white,
-                secondary: Color(white: 0.62),
+                background: .clear,
+                text: .primary,
+                secondary: .secondary,
                 searchFill: Color.white.opacity(0.10),
                 theirBubble: Color.white.opacity(0.12),
                 unread: .picardoNeonRed,

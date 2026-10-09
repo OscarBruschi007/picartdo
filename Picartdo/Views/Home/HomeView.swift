@@ -366,9 +366,8 @@ struct HomeView: View {
 
     private var featured: Artwork { homeFeed.featured }
     private var storyArtists: [Artist] { homeFeed.storyArtists }
-    private var articles: [HomeArticle] { HomeArticle.samples }
-    private var featuredArticles: [HomeArticle] { Array(articles.prefix(4)) }
-    private var cityEvents: [ArtEventItem] { Array(ArtEventItem.samples.prefix(3)) }
+    private var featuredArticles: [HomeArticle] { homeFeed.articles }
+    private var cityEvents: [ArtEventItem] { homeFeed.cityEvents }
 
     /// Listing, video, listing, video — leftover videos or listings trail at the end.
     private var mixedFeed: [HomeFeedItem] {
@@ -424,6 +423,12 @@ struct HomeView: View {
                         }
 
                         Color.clear.frame(height: 24)
+                    }
+                }
+                .refreshable {
+                    try? await Task.sleep(for: .milliseconds(550))
+                    withAnimation(PicardoMotion.transition) {
+                        homeFeed.refresh(taste: taste)
                     }
                 }
                 .onAppear {
@@ -979,6 +984,7 @@ struct FeaturedHeroCard: View {
     var onBuy: (() -> Void)? = nil
     var onOpen: (() -> Void)? = nil
     var eyebrow: String? = nil
+    var allowsMessage: Bool = true
 
     var body: some View {
         ArtworkCard(
@@ -988,7 +994,8 @@ struct FeaturedHeroCard: View {
             onSave: onSave,
             onBuy: onBuy,
             eyebrow: eyebrow,
-            onOpenArtwork: onOpen
+            onOpenArtwork: onOpen,
+            allowsMessage: allowsMessage
         )
     }
 }
@@ -1063,21 +1070,43 @@ struct CategoryFeedView: View {
 
 struct StoriesRow: View {
     var artists: [Artist] = Array(Artist.all.prefix(5))
+    @State private var openedStory: Artist?
+    @State private var messageArtist: Artist?
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 18) {
                 ForEach(artists) { artist in
-                    NavigationLink(value: artist) {
+                    Button {
+                        Haptics.tap()
+                        openedStory = artist
+                    } label: {
                         StoryBubble(artist: artist, showName: true)
                     }
                     .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            Haptics.tap()
+                            messageArtist = artist
+                        } label: {
+                            Label("Message", systemImage: "envelope")
+                        }
+                        NavigationLink(value: artist) {
+                            Label("View profile", systemImage: "person")
+                        }
+                    }
                 }
             }
             .padding(.horizontal, 18)
             .padding(.vertical, 4)
         }
         .scrollClipDisabled()
+        .fullScreenCover(item: $openedStory) { artist in
+            StoryViewer(story: artist.feedStory, artist: artist) {
+                openedStory = nil
+            }
+        }
+        .messageComposer(artist: $messageArtist)
     }
 }
 
@@ -1241,6 +1270,7 @@ struct PostCard: View {
     @State private var confirmRelease = false
     @State private var isSaved = false
     @State private var showReportAlert = false
+    @State private var showMessage = false
 
     /// Logarithmic star rating from total interactions, rounded to nearest 0.5
     /// ~100 interactions ≈ 2.0 ★  |  ~500 ≈ 3.5 ★  |  ~2000 ≈ 4.5 ★  |  ~5000 ≈ 5.0 ★
@@ -1256,19 +1286,22 @@ struct PostCard: View {
     }
 
     var body: some View {
-        if post.isVideo {
-            videoPost
-        } else {
-            VStack(alignment: .leading, spacing: 0) {
-                header
-                media
-                if let listing = post.listing {
-                    shopTag(listing)
+        Group {
+            if post.isVideo {
+                videoPost
+            } else {
+                VStack(alignment: .leading, spacing: 0) {
+                    header
+                    media
+                    if let listing = post.listing {
+                        shopTag(listing)
+                    }
+                    actions
+                    caption
                 }
-                actions
-                caption
             }
         }
+        .messageComposer(isPresented: $showMessage, artist: post.artist)
     }
 
     private var videoShape: RoundedRectangle {
@@ -1342,6 +1375,11 @@ struct PostCard: View {
             .buttonStyle(.plain)
             .accessibilityLabel("More options")
             .confirmationDialog(post.artist.name, isPresented: $showOptions, titleVisibility: .visible) {
+                Button {
+                    showMessage = true
+                } label: {
+                    Label("Message \(firstName)", systemImage: "envelope")
+                }
                 ShareLink(item: "Check out \"\(post.caption)\" by \(post.artist.name) on Picartdo") {
                     Label("Share Post", systemImage: "square.and.arrow.up")
                 }
@@ -1472,6 +1510,11 @@ struct PostCard: View {
             .buttonStyle(.plain)
             .accessibilityLabel("More options")
             .confirmationDialog(post.artist.name, isPresented: $showOptions, titleVisibility: .visible) {
+                Button {
+                    showMessage = true
+                } label: {
+                    Label("Message \(firstName)", systemImage: "envelope")
+                }
                 ShareLink(item: "Check out \"\(post.caption)\" by \(post.artist.name) on Picartdo") {
                     Label("Share Post", systemImage: "square.and.arrow.up")
                 }
@@ -1614,13 +1657,14 @@ struct PostCard: View {
             .accessibilityLabel("\(post.comments) comments")
 
             Button {
+                showMessage = true
             } label: {
                 Image(systemName: "paperplane")
                     .font(.system(size: 19))
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Send")
+            .accessibilityLabel("Message")
 
             Spacer()
 

@@ -539,7 +539,7 @@ struct DiscoverView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
-                .padding(.bottom, 48)
+                .padding(.bottom, 110)
             }
             .background(Color.picardoBackground)
             .navigationBarTitleDisplayMode(.inline)
@@ -572,40 +572,45 @@ struct GoatFullCard: View {
         RoundedRectangle(cornerRadius: 28, style: .continuous)
     }
 
-    /// Native photo ratio so the picture is not cropped to a tall screen slot.
-    private var photoAspect: CGFloat {
-        guard let image = UIImage(named: imageName), image.size.height > 0 else {
-            return 3.0 / 4.0
-        }
-        return image.size.width / image.size.height
-    }
+    /// One cover size for every service so the list stays even.
+    private let coverAspect: CGFloat = 3.0 / 4.0
 
     var body: some View {
         Color.black
-            .aspectRatio(photoAspect, contentMode: .fit)
+            .aspectRatio(coverAspect, contentMode: .fit)
             .overlay {
-                ArtworkImage(imageName: imageName, contentMode: .fit, maxDimension: 1400)
+                ArtworkImage(imageName: imageName, contentMode: .fill, maxDimension: 1400)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
             }
             .overlay {
-                VStack(spacing: 0) {
-                    VStack(spacing: 3) {
-                        Text("Explore")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.secondary)
-                        Text(category.rawValue)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 10)
-                    .picardoGlass(in: Capsule(), interactive: true)
-
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .clear, location: 0.28),
+                        .init(color: .black.opacity(0.28), location: 0.52),
+                        .init(color: .black.opacity(0.72), location: 1),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .overlay {
+                VStack {
                     Spacer(minLength: 0)
+                    Text(category.rawValue)
+                        .font(PicardoType.display(44))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(2)
+                        .shadow(color: .black.opacity(0.45), radius: 10, y: 2)
+                        .padding(.horizontal, 18)
+                        .padding(.bottom, 76)
+                        .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
-                .padding(16)
             }
+            .clipShape(mediaShape)
             .picardoGlassMedia(in: mediaShape)
     }
 }

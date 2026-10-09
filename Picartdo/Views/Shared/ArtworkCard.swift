@@ -24,16 +24,36 @@ struct ArtworkCard: View {
     /// When set, image and title open this way (sheet/cover). Otherwise they
     /// push `Artwork` on the current `NavigationStack`.
     var onOpenArtwork: (() -> Void)? = nil
+    var allowsMessage: Bool = true
+
+    @State private var showMessage = false
 
     var body: some View {
-        switch variant {
-        case .grid:           gridBody
-        case .featured:       featuredBody
-        case .pinterest:      pinterestBody
-        case .compact:        compactBody
-        case .listRow:        listRowBody
-        case .collectionWork: collectionWorkBody
+        Group {
+            switch variant {
+            case .grid:           gridBody
+            case .featured:       featuredBody
+            case .pinterest:      pinterestBody
+            case .compact:        compactBody
+            case .listRow:        listRowBody
+            case .collectionWork: collectionWorkBody
+            }
         }
+        .contextMenu {
+            if allowsMessage {
+                Button {
+                    showMessage = true
+                } label: {
+                    Label("Message", systemImage: "envelope")
+                }
+            }
+            if let onSave {
+                Button(action: onSave) {
+                    Label(isSaved ? "Unsave" : "Save", systemImage: isSaved ? "bookmark.slash" : "bookmark")
+                }
+            }
+        }
+        .messageComposer(isPresented: $showMessage, artwork: artwork)
     }
 
     // MARK: Shared chrome
@@ -174,6 +194,18 @@ struct ArtworkCard: View {
                         .foregroundStyle(.primary)
 
                     HStack(spacing: 10) {
+                        if allowsMessage {
+                            Button {
+                                showMessage = true
+                            } label: {
+                                Image(systemName: "envelope")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(Color(white: 0.35))
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Message")
+                        }
+
                         Button(action: { onSave?() }) {
                             Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                                 .font(.system(size: 16, weight: .medium))
@@ -349,6 +381,18 @@ struct ArtworkCard: View {
                     .foregroundStyle(.primary)
 
                 HStack(spacing: 8) {
+                    if allowsMessage {
+                        Button {
+                            showMessage = true
+                        } label: {
+                            Image(systemName: "envelope")
+                                .font(.system(size: 13))
+                                .foregroundStyle(Color(.secondaryLabel))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Message")
+                    }
+
                     Button(action: { onSave?() }) {
                         Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
                             .font(.system(size: 13))

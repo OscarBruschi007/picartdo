@@ -34,6 +34,7 @@ struct PicartdoApp: App {
                 .environment(homeFeed)
                 .environment(marketplace)
                 .environment(threads)
+                .environment(SettingsStore.shared)
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .background:
