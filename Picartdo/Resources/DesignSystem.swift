@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // MARK: - Motion
 //
@@ -74,6 +75,47 @@ extension View {
         self
             .toolbarBackground(Color.picardoBackground, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+    }
+
+    /// Hide the back chevron; edge-swipe still pops the screen.
+    func picardoSwipeBackOnly() -> some View {
+        self
+            .navigationBarBackButtonHidden(true)
+            .toolbar(.hidden, for: .navigationBar)
+            .background(PicardoSwipeBackEnabler())
+    }
+}
+
+private struct HomeRootTickKey: EnvironmentKey {
+    static let defaultValue = 0
+}
+
+extension EnvironmentValues {
+    /// Bumped when the Home tab is tapped so Home pops to the main feed.
+    var homeRootTick: Int {
+        get { self[HomeRootTickKey.self] }
+        set { self[HomeRootTickKey.self] = newValue }
+    }
+}
+
+private struct PicardoSwipeBackEnabler: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> UIViewController {
+        Controller()
+    }
+
+    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+
+    final class Controller: UIViewController, UIGestureRecognizerDelegate {
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            guard let pop = navigationController?.interactivePopGestureRecognizer else { return }
+            pop.isEnabled = true
+            pop.delegate = self
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            (navigationController?.viewControllers.count ?? 0) > 1
+        }
     }
 }
 

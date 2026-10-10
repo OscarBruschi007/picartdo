@@ -4,8 +4,8 @@ import SwiftUI
 //
 // One layout for every profile: your own Profile tab and every artist's page.
 // Add a new profile feature HERE, never in ProfileView or ArtistStoreView, so
-// both get it. The wrappers only supply who the person is and what the two
-// header buttons do (Edit/Message for you, Muse/Message for other artists).
+// both get it. The wrappers only supply who the person is and what the
+// header buttons do (Edit and Messages on your own profile, Contact on others).
 
 struct ProfilePageConfig {
     var person: ProfileGalleryPerson
@@ -33,8 +33,8 @@ struct ProfilePageBody: View {
     @State private var buyArtwork: Artwork?
     @State private var messageArtwork: Artwork?
     @State private var activeStory: ArtistStory?
-    @State private var showThoughts = false
     @State private var showReviews = false
+    @State private var openedPost: ProfilePostLaunch?
 
     var body: some View {
         ZStack {
@@ -49,7 +49,8 @@ struct ProfilePageBody: View {
                         primaryTitle: config.primaryTitle,
                         onPrimary: config.onPrimary,
                         secondaryTitle: config.secondaryTitle,
-                        onSecondary: config.onSecondary
+                        onSecondary: config.onSecondary,
+                        onReviews: { showReviews = true }
                     )
                     .padding(.bottom, 10)
 
@@ -58,10 +59,10 @@ struct ProfilePageBody: View {
 
                     if mediaTab == .selling {
                         ProfileListingStack(
-                            items: feedItems,
+                            items: listingItems,
                             onOpen: { artwork in
                                 Haptics.tap()
-                                listingFeed = ListingFeedLaunch(id: artwork.id, items: feedItems)
+                                listingFeed = ListingFeedLaunch(id: artwork.id, items: listingItems)
                             },
                             onBuy: { buyArtwork = $0 },
                             allowsMessage: !config.personal
@@ -69,49 +70,42 @@ struct ProfilePageBody: View {
                         .padding(.bottom, 8)
                     } else {
                         MediaGrid(
-                            items: feedItems.map(\.mediaGridItem),
+                            items: imageGridItems,
                             emptyTitle: "No images yet",
                             emptyDetail: "Posts and photos will land here.",
                             onSelect: { item in
                                 Haptics.tap()
-                                listingFeed = ListingFeedLaunch(id: item.id, items: feedItems)
+                                if let post = profilePosts.first(where: { $0.imageName == item.imageName }) {
+                                    openedPost = ProfilePostLaunch(post: post)
+                                } else {
+                                    listingFeed = ListingFeedLaunch(id: item.id, items: listingItems)
+                                }
                             },
                             onMessage: config.personal ? nil : { item in
                                 Haptics.tap()
-                                messageArtwork = feedItems.first { $0.id == item.id }
+                                messageArtwork = listingItems.first { $0.id == item.id }
                             }
                         )
                         .padding(.bottom, 8)
                     }
 
-                    ProfileMoreLinks(items: [
-                        ("Thoughts", { showThoughts = true }),
-                        ("Reviews", { showReviews = true }),
-                    ] + config.extraLinks)
-                    .padding(.top, 36)
-
-                    Text(config.footer)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 16)
-                        .padding(.bottom, 40)
-
-                    Color.clear.frame(height: 24)
+                    Color.clear.frame(height: 48)
                 }
             }
-        }
-        .sheet(isPresented: $showThoughts) {
-            ProfileThoughtsSheet(author: config.thoughtsAuthor, canCompose: config.personal)
         }
         .sheet(isPresented: $showReviews) {
             ProfileReviewsSheet(reviews: config.reviews)
         }
-        .sheet(item: $buyArtwork) { artwork in
+        .fullScreenCover(item: $buyArtwork) { artwork in
             BuyConfirmationSheet(artwork: artwork)
+                .presentationBackground(Color.picardoBackground)
         }
         .fullScreenCover(item: $listingFeed) { launch in
             ProfileListingFeedView(launch: launch, allowsMessage: !config.personal)
+        }
+        .fullScreenCover(item: $openedPost) { launch in
+            ProfilePostDetailView(post: launch.post, personal: config.personal)
+                .presentationBackground(Color.picardoBackground)
         }
         .fullScreenCover(item: $activeStory) { story in
             StoryViewer(
@@ -122,9 +116,216 @@ struct ProfilePageBody: View {
         .messageComposer(artwork: $messageArtwork)
     }
 
-    private var feedItems: [Artwork] {
+    private var listingItems: [Artwork] {
         let all = config.artworks.filter { !$0.imageName.isEmpty }
         return mediaTab == .selling ? all.filter { !$0.isSold } : all
+    }
+
+    private var profilePosts: [ArtistPost] {
+        let listingNames = Set(config.artworks.map(\.imageName))
+        return ArtistPost.samples.filter {
+            $0.artist.name == config.person.name && !$0.isVideo && !listingNames.contains($0.imageName)
+        }
+    }
+
+    private var imageGridItems: [MediaGridItem] {
+        let posts = profilePosts.map {
+            MediaGridItem(id: $0.id, imageName: $0.imageName, title: $0.caption)
+        }
+        return posts + listingItems.map(\.mediaGridItem)
+    }
+}
+
+struct ProfilePostLaunch: Identifiable {
+    let post: ArtistPost
+    var id: String { post.imageName }
+}
+
+private struct ProfilePostComment: Identifiable {
+    let id = UUID()
+    let name: String
+    let text: String
+    let timeAgo: String
+}
+
+/// Studio / social post — not a listing. Stars, comments, share. No price or Buy.
+struct ProfilePostDetailView: View {
+    let post: ArtistPost
+    var personal: Bool = false
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var starred = false
+    @State private var saved = false
+    @State private var commentDraft = ""
+    @State private var comments: [ProfilePostComment] = []
+    @FocusState private var commentFocused: Bool
+
+    private var starRating: Double {
+        let total = Double(post.likes + post.comments + comments.count + (starred ? 1 : 0))
+        let raw = (log10(total + 1) / log10(5000)) * 5.0
+        let clamped = min(5.0, max(1.0, raw))
+        return (clamped * 2).rounded() / 2
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        ArtworkImage(imageName: post.imageName, contentMode: .fit, maxDimension: 1600)
+                            .frame(maxWidth: .infinity)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+
+                        HStack(spacing: 10) {
+                            ArtworkImage(imageName: post.artist.avatarImage, contentMode: .fill, maxDimension: 200)
+                                .frame(width: 36, height: 36)
+                                .clipShape(Circle())
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(post.artist.name)
+                                    .font(.system(size: 15, weight: .semibold))
+                                Text("Post · \(post.timeAgo)")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+
+                        Text(post.caption)
+                            .font(.system(size: 16))
+                            .padding(.horizontal, 16)
+
+                        HStack(spacing: 22) {
+                            Button {
+                                Haptics.tap()
+                                starred.toggle()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: starred ? "star.fill" : "star")
+                                        .foregroundStyle(starred ? Color.picardoGold : .primary)
+                                    Text(String(format: "%.1f", starRating))
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(starred ? Color.picardoGold : .primary)
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Rate, \(String(format: "%.1f", starRating)) stars")
+
+                            Button {
+                                commentFocused = true
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: "bubble.right")
+                                    Text("\(post.comments + comments.count)")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                .foregroundStyle(.primary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("Comments")
+
+                            ShareLink(item: "Check out this post by \(post.artist.name) on Picartdo") {
+                                Image(systemName: "square.and.arrow.up")
+                                    .foregroundStyle(.primary)
+                            }
+                            .accessibilityLabel("Share")
+
+                            Spacer()
+
+                            Button {
+                                withAnimation { saved.toggle() }
+                            } label: {
+                                Image(systemName: saved ? "bookmark.fill" : "bookmark")
+                                    .foregroundStyle(saved ? Color.picardoGold : .primary)
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(saved ? "Remove from collection" : "Save")
+                        }
+                        .font(.system(size: 20))
+                        .padding(.horizontal, 16)
+
+                        Rectangle()
+                            .fill(Color.picardoDivider)
+                            .frame(height: 0.5)
+                            .padding(.horizontal, 16)
+
+                        Text("Comments")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 16)
+
+                        ForEach(comments) { item in
+                            HStack(alignment: .top, spacing: 10) {
+                                Circle()
+                                    .fill(Color.picardoCard)
+                                    .frame(width: 28, height: 28)
+                                    .overlay {
+                                        Text(String(item.name.prefix(1)))
+                                            .font(.system(size: 12, weight: .bold))
+                                    }
+                                VStack(alignment: .leading, spacing: 3) {
+                                    HStack(spacing: 6) {
+                                        Text(item.name)
+                                            .font(.system(size: 13, weight: .semibold))
+                                        Text(item.timeAgo)
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Text(item.text)
+                                        .font(.system(size: 14))
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                        }
+                    }
+                    .padding(.bottom, 20)
+                }
+
+                HStack(spacing: 10) {
+                    TextField("Add a comment…", text: $commentDraft, axis: .vertical)
+                        .lineLimit(1...3)
+                        .focused($commentFocused)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .background(Color.picardoCard, in: Capsule())
+                    Button {
+                        let text = commentDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !text.isEmpty else { return }
+                        comments.append(ProfilePostComment(name: "You", text: text, timeAgo: "now"))
+                        commentDraft = ""
+                        Haptics.tap()
+                    } label: {
+                        Image(systemName: "arrow.up.circle.fill")
+                            .font(.system(size: 30))
+                            .foregroundStyle(commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                ? Color.secondary.opacity(0.4)
+                                : Color.picardoNeonRed)
+                    }
+                    .disabled(commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .accessibilityLabel("Post comment")
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+            }
+            .background(PicartdoBackground().ignoresSafeArea())
+            .navigationTitle("Post")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            if comments.isEmpty {
+                comments = [
+                    ProfilePostComment(name: "Camila Ruiz", text: "The colour against that sky.", timeAgo: "40m"),
+                    ProfilePostComment(name: "Hugo Kessler", text: "Studio light is doing the work.", timeAgo: "1h"),
+                ]
+            }
+        }
     }
 }
 
@@ -137,16 +338,24 @@ struct ProfileReviewsSheet: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 10) {
-                    ForEach(reviews) { review in
-                        ReviewCard(review: review)
+                if reviews.isEmpty {
+                    Text("No customer reviews yet.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 60)
+                } else {
+                    VStack(spacing: 10) {
+                        ForEach(reviews) { review in
+                            ReviewCard(review: review)
+                        }
                     }
+                    .padding(16)
+                    .padding(.top, 8)
                 }
-                .padding(16)
-                .padding(.top, 8)
             }
             .background(Color.picardoBackground)
-            .navigationTitle("Reviews")
+            .navigationTitle("Customer reviews")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

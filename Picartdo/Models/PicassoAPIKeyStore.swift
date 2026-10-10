@@ -16,7 +16,7 @@ enum PicassoAPIKeyStore {
         if let key = loadFromKeychain(), !key.isEmpty { return key }
 
         let env = ProcessInfo.processInfo.environment
-        for name in ["ANTHROPIC_API_KEY", "PICARDO_ANTHROPIC_API_KEY"] {
+        for name in ["ANTHROPIC_API_KEY", "PICARTDO_ANTHROPIC_API_KEY", "PICARDO_ANTHROPIC_API_KEY"] {
             if let key = env[name], !key.isEmpty { return key }
         }
 

@@ -159,52 +159,32 @@ struct ReviewCard: View {
 struct ArtistStoreView: View {
     let artist: Artist
 
-    @State private var isMuse = false
-    @State private var confirmRelease = false
-    @State private var showCommission = false
-    @State private var showMessages = false
+    @State private var showContact = false
 
     var body: some View {
         ProfilePageBody(config: ProfilePageConfig(
             person: person,
             personal: false,
-            primaryTitle: isMuse ? "RELEASE MUSE" : "MUSE",
-            onPrimary: {
-                if isMuse {
-                    confirmRelease = true
-                } else {
-                    withAnimation(PicardoMotion.quick) { isMuse = true }
-                }
-            },
-            secondaryTitle: "MESSAGE",
-            onSecondary: { showMessages = true },
+            primaryTitle: "",
+            onPrimary: {},
+            secondaryTitle: "CONTACT",
+            onSecondary: { showContact = true },
             stories: artist.highlightStories,
             artworks: artistArtworks,
             reviews: ArtistReview.samples(for: artist),
             thoughtsAuthor: artist.name,
-            extraLinks: artist.availableForCommissions ? [("Book", { showCommission = true })] : [],
-            footer: "On PICARDO · \(artist.location)"
+            extraLinks: [],
+            footer: ""
         ))
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .picardoPushedScreen()
+        .picardoSwipeBackOnly()
         .navigationDestination(for: Artist.self) { next in
             ArtistStoreView(artist: next)
-                .picardoPushedScreen()
         }
-        .navigationDestination(isPresented: $showMessages) {
-            ArtistChatView(artist: artist)
-        }
-        .confirmationDialog("Release this muse?", isPresented: $confirmRelease, titleVisibility: .visible) {
-            Button("Release", role: .destructive) {
-                withAnimation(PicardoMotion.quick) { isMuse = false }
+        .fullScreenCover(isPresented: $showContact) {
+            NavigationStack {
+                ArtistChatView(artist: artist)
             }
-            Button("Keep", role: .cancel) {}
-        }
-        .sheet(isPresented: $showCommission) {
-            NavigationStack { CommissionRequestView(artist: artist) }
-                .presentationDetents([.large])
-                .presentationCornerRadius(28)
+            .presentationBackground(Color.picardoBackground)
         }
     }
 
@@ -222,7 +202,8 @@ struct ArtistStoreView: View {
             verified: artist.verified,
             followers: artist.followers,
             following: artist.followingCount,
-            rating: artist.rating
+            rating: artist.rating,
+            reviewCount: artist.reviewCount
         )
     }
 

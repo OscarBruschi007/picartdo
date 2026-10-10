@@ -26,8 +26,9 @@ struct ProfileView: View {
                     customCover: identity.coverImage,
                     verified: true,
                     followers: Artist.oscar.followers,
-                    following: Artist.oscar.followingCount,
-                    rating: Artist.oscar.rating
+                    following: "111",
+                    rating: Artist.oscar.rating,
+                    reviewCount: Artist.oscar.reviewCount
                 ),
                 personal: true,
                 primaryTitle: "EDIT PROFILE",
@@ -38,12 +39,11 @@ struct ProfileView: View {
                 artworks: marketplace.listings,
                 reviews: ArtistReview.samples(for: .oscar),
                 thoughtsAuthor: Artist.oscar.name,
-                footer: "Joined PICARDO in \(String(identity.sinceYear))"
+                footer: "Joined Picartdo in \(String(identity.sinceYear))"
             ))
             .navigationBarHidden(true)
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
-                    .picardoPushedScreen()
             }
             .overlay(alignment: .topTrailing) {
                 if !showMessages {

@@ -25,10 +25,12 @@ final class HomeFeedStore {
     private(set) var articles: [HomeArticle]
     private(set) var cityEvents: [ArtEventItem]
     private(set) var layout: [HomeLayoutBlock]
+    private(set) var artistOfTheWeek: ArtistOfTheWeekFeature
 
     private var lastRefresh = Date.distantPast
     private let lastFeaturedKey = "picartdo.home.lastFeaturedImages"
     private let lastLayoutKey = "picartdo.home.lastLayout"
+    private let lastArtistOfTheWeekKey = "picartdo.home.lastArtistOfTheWeek"
 
     init() {
         featured = Artwork.samples[0]
@@ -38,6 +40,7 @@ final class HomeFeedStore {
         articles = Array(HomeArticle.samples.prefix(4))
         cityEvents = Array(ArtEventItem.samples.prefix(3))
         layout = HomeLayoutBlock.allCases
+        artistOfTheWeek = ArtistOfTheWeekFeature.current
         refresh()
     }
 
@@ -68,6 +71,7 @@ final class HomeFeedStore {
         articles = Array(HomeArticle.samples.shuffled().prefix(4))
         cityEvents = Array(ArtEventItem.samples.shuffled().prefix(3))
         layout = shuffledLayout()
+        artistOfTheWeek = pickArtistOfTheWeek()
 
         lastRefresh = Date()
         applyTaste(taste)
@@ -82,6 +86,16 @@ final class HomeFeedStore {
     func applyTaste(_ taste: TastePreferenceStore?) {
         guard let taste, !taste.categoryScores.isEmpty else { return }
         moreListings = rankedByTaste(moreListings, taste: taste)
+    }
+
+    private func pickArtistOfTheWeek() -> ArtistOfTheWeekFeature {
+        let pool = ArtistOfTheWeekFeature.roster
+        guard !pool.isEmpty else { return ArtistOfTheWeekFeature.current }
+        let last = UserDefaults.standard.string(forKey: lastArtistOfTheWeekKey)
+        let fresh = pool.filter { $0.portraitImage != last }
+        let pick = (fresh.isEmpty ? pool : fresh).randomElement() ?? pool[0]
+        UserDefaults.standard.set(pick.portraitImage, forKey: lastArtistOfTheWeekKey)
+        return pick
     }
 
     private func shuffledLayout() -> [HomeLayoutBlock] {

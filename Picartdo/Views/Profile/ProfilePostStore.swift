@@ -48,6 +48,18 @@ final class ProfilePostStore {
         } else {
             posts = ProfilePost.seed
         }
+        if !posts.contains(where: { $0.assetImageName == "oscar_studio" }) {
+            posts.insert(
+                ProfilePost(
+                    text: "At the canvas. Colour going down by the window.",
+                    assetImageName: "oscar_studio",
+                    likeCount: 842,
+                    createdAt: Date()
+                ),
+                at: 0
+            )
+            persist()
+        }
     }
 
     func add(_ post: ProfilePost) {

@@ -56,7 +56,7 @@ enum ListingAutofillService {
         Look at this artwork photo and return ONLY compact JSON, no markdown, no extra keys:
         {
           "title": "short natural listing title",
-          "caption": "1-2 sentences in the artist's voice",
+          "caption": "short precise description of the piece: subject, colour, and what it is",
           "category": "Painting",
           "medium": "Oil on canvas",
           "condition": "Excellent",

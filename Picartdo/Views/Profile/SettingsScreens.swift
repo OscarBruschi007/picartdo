@@ -313,7 +313,7 @@ struct PasswordSettingsView: View {
         SettingsChrome(title: "Password") {
             VStack(alignment: .leading, spacing: 16) {
                 Text(session.profile?.email == nil
-                     ? "You’re signed in with Apple. A PICARDO password is optional for email login."
+                     ? "You’re signed in with Apple. A Picartdo password is optional for email login."
                      : "Change the password for \(session.profile?.email ?? "your account").")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
@@ -453,13 +453,13 @@ struct PrivacySettingsView: View {
                     SettingsDivider()
                     SettingsToggleRow(
                         title: "Activity status",
-                        subtitle: "Show when you were last on PICARDO",
+                        subtitle: "Show when you were last on Picartdo",
                         isOn: Binding(get: { store.flags.showActivityStatus }, set: { store.flags.showActivityStatus = $0; store.save() })
                     )
                     SettingsDivider()
                     SettingsToggleRow(
                         title: "Suggest your account",
-                        subtitle: "Let PICARDO recommend you to collectors",
+                        subtitle: "Let Picartdo recommend you to collectors",
                         isOn: Binding(get: { store.flags.suggestAccount }, set: { store.flags.suggestAccount = $0; store.save() })
                     )
                     SettingsDivider()
@@ -608,11 +608,39 @@ struct MessageSettingsForm: View {
                 .padding(.horizontal, 4)
 
             SettingsCard {
-                audienceRow("Everyone", value: "everyone", detail: "Anyone on PICARDO")
+                audienceRow("Everyone", value: "everyone", detail: "Anyone on Picartdo")
+                SettingsDivider()
+                audienceRow("Friends", value: "friends", detail: "Muses and people who muse you")
                 SettingsDivider()
                 audienceRow("People you follow", value: "following", detail: "Your muses and buyers")
                 SettingsDivider()
                 audienceRow("No one", value: "nobody", detail: "Turn messages off")
+            }
+
+            Text("Marketplace")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+                .padding(.top, 4)
+
+            SettingsCard {
+                SettingsToggleRow(
+                    title: "Marketplace messages",
+                    subtitle: "Collectors can message you about a listing",
+                    isOn: Binding(get: { store.flags.allowMarketplaceMessages }, set: { store.flags.allowMarketplaceMessages = $0; store.save() })
+                )
+                SettingsDivider()
+                SettingsToggleRow(
+                    title: "Offers in Marketplace",
+                    subtitle: "Keep offers and sales in the Marketplace tab",
+                    isOn: Binding(get: { store.flags.marketplaceOffersInInbox }, set: { store.flags.marketplaceOffersInInbox = $0; store.save() })
+                )
+                SettingsDivider()
+                SettingsToggleRow(
+                    title: "Order messages",
+                    subtitle: "Buyers can ask about shipping and orders",
+                    isOn: Binding(get: { store.flags.allowOrderMessages }, set: { store.flags.allowOrderMessages = $0; store.save() })
+                )
             }
 
             SettingsCard {
@@ -776,7 +804,7 @@ struct PayoutsSettingsView: View {
                     SettingsDivider()
                     SettingsInfoRow(title: "Next payout", value: "Friday")
                 }
-                Text("Sales settle to your default card. PICARDO holds funds until the collector confirms delivery.")
+                Text("Sales settle to your default card. Picartdo holds funds until the collector confirms delivery.")
                     .font(.system(size: 14))
                     .foregroundStyle(.secondary)
             }
@@ -1050,7 +1078,7 @@ struct HelpSettingsView: View {
                     }
                 }
 
-                if let mail = URL(string: "mailto:hello@picardo.app?subject=PICARDO%20help") {
+                if let mail = URL(string: "mailto:hello@picartdo.app?subject=Picartdo%20help") {
                     Link(destination: mail) {
                         Text("Email support")
                             .font(.system(size: 16, weight: .semibold))
@@ -1080,7 +1108,7 @@ struct AboutSettingsView: View {
         SettingsChrome(title: "About") {
             VStack(alignment: .leading, spacing: 16) {
                 SettingsCard {
-                    SettingsInfoRow(title: "PICARDO", value: version)
+                    SettingsInfoRow(title: "Picartdo", value: version)
                     SettingsDivider()
                     SettingsInfoRow(title: "Toronto", value: "Canada")
                 }
@@ -1190,7 +1218,7 @@ struct DataAndStorageView: View {
             "\($0.title) · \($0.status.rawValue) · \($0.amount)"
         }.joined(separator: "\n")
         return """
-        PICARDO data export
+        Picartdo data export
         Name: \(identity.name)
         Username: @\(identity.handle)
         Email: \(flags.email)
@@ -1270,18 +1298,18 @@ struct DataAndStorageView: View {
 
 enum LegalCopy {
     static let terms = """
-    PICARDO is a marketplace for original art. You keep the copyright in work you list. Collectors receive the physical work they buy, not the copyright, unless you agree otherwise in writing.
+    Picartdo is a marketplace for original art. You keep the copyright in work you list. Collectors receive the physical work they buy, not the copyright, unless you agree otherwise in writing.
 
-    Listings must be yours to sell. Prices are set by you. PICARDO may remove work that is copied, unlawful, or misleading.
+    Listings must be yours to sell. Prices are set by you. Picartdo may remove work that is copied, unlawful, or misleading.
 
-    Sales are contracts between you and the collector. PICARDO facilitates payment and may hold funds until delivery is confirmed.
+    Sales are contracts between you and the collector. Picartdo facilitates payment and may hold funds until delivery is confirmed.
     """
 
     static let privacy = """
-    PICARDO stores the account details you give us — name, email, studio city, and the photos you upload — to run the app.
+    Picartdo stores the account details you give us — name, email, studio city, and the photos you upload — to run the app.
 
     We use this to show your profile, process orders, and send the notifications you turn on. We do not sell your list of collectors.
 
-    You can edit or delete profile copy in Settings, log out, or email hello@picardo.app to ask for a copy of your data.
+    You can edit or delete profile copy in Settings, log out, or email hello@picartdo.app to ask for a copy of your data.
     """
 }

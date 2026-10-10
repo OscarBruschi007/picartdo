@@ -67,7 +67,7 @@ struct ArtEventItem: Identifiable, Hashable {
         ArtEventItem(title: "Colour Field Hang", venue: "Art Gallery of Ontario", city: "Toronto, ON", month: "OCT", day: 22, type: "Exhibition", imageName: "color_field", isOnline: false, distance: "1.1 mi", hoursUntil: nil),
         ArtEventItem(title: "Live Painting Night", venue: "The Drake Hotel", city: "Toronto, ON", month: "NOV", day: 1, type: "Live Painting", imageName: "electric_face", isOnline: false, distance: "0.8 mi", hoursUntil: nil),
         ArtEventItem(title: "Paper & People", venue: "Daniel Faria Gallery", city: "Toronto, ON", month: "NOV", day: 8, type: "Gallery Opening", imageName: "people_collage", isOnline: false, distance: "1.6 mi", hoursUntil: nil),
-        ArtEventItem(title: "Studio Open House", venue: "PICARDO Studio", city: "Toronto, ON", month: "NOV", day: 14, type: "Open Studio", imageName: "circle_worlds", isOnline: false, distance: "2.4 mi", hoursUntil: nil),
+        ArtEventItem(title: "Studio Open House", venue: "Picartdo Studio", city: "Toronto, ON", month: "NOV", day: 14, type: "Open Studio", imageName: "circle_worlds", isOnline: false, distance: "2.4 mi", hoursUntil: nil),
     ]
 }
 

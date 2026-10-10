@@ -107,10 +107,13 @@ extension SettingsStore {
         var privateAccount = false
         var showActivityStatus = true
         var allowMessages = true
-        /// everyone | following | nobody
+        /// everyone | friends | following | nobody
         var messageAudience = "everyone"
         var allowMessageRequests = true
         var readReceipts = true
+        var allowMarketplaceMessages = true
+        var marketplaceOffersInInbox = true
+        var allowOrderMessages = true
         var allowComments = true
         var allowMentions = true
         var allowTags = true
@@ -126,7 +129,7 @@ extension SettingsStore {
         var pauseAllNotifications = false
         var filterSensitive = true
         var hideLikeCounts = false
-        var email = "oscar@picardo.app"
+        var email = "oscar@picartdo.app"
         var phone = ""
         var language = "English"
         var currency = "CAD"
@@ -135,6 +138,43 @@ extension SettingsStore {
         var loginAlerts = true
 
         static let defaults = Flags()
+
+        init() {}
+
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            privateAccount = try c.decodeIfPresent(Bool.self, forKey: .privateAccount) ?? false
+            showActivityStatus = try c.decodeIfPresent(Bool.self, forKey: .showActivityStatus) ?? true
+            allowMessages = try c.decodeIfPresent(Bool.self, forKey: .allowMessages) ?? true
+            messageAudience = try c.decodeIfPresent(String.self, forKey: .messageAudience) ?? "everyone"
+            allowMessageRequests = try c.decodeIfPresent(Bool.self, forKey: .allowMessageRequests) ?? true
+            readReceipts = try c.decodeIfPresent(Bool.self, forKey: .readReceipts) ?? true
+            allowMarketplaceMessages = try c.decodeIfPresent(Bool.self, forKey: .allowMarketplaceMessages) ?? true
+            marketplaceOffersInInbox = try c.decodeIfPresent(Bool.self, forKey: .marketplaceOffersInInbox) ?? true
+            allowOrderMessages = try c.decodeIfPresent(Bool.self, forKey: .allowOrderMessages) ?? true
+            allowComments = try c.decodeIfPresent(Bool.self, forKey: .allowComments) ?? true
+            allowMentions = try c.decodeIfPresent(Bool.self, forKey: .allowMentions) ?? true
+            allowTags = try c.decodeIfPresent(Bool.self, forKey: .allowTags) ?? true
+            suggestAccount = try c.decodeIfPresent(Bool.self, forKey: .suggestAccount) ?? true
+            notifyPush = try c.decodeIfPresent(Bool.self, forKey: .notifyPush) ?? true
+            notifyEmail = try c.decodeIfPresent(Bool.self, forKey: .notifyEmail) ?? true
+            notifyLikes = try c.decodeIfPresent(Bool.self, forKey: .notifyLikes) ?? true
+            notifyComments = try c.decodeIfPresent(Bool.self, forKey: .notifyComments) ?? true
+            notifyFollows = try c.decodeIfPresent(Bool.self, forKey: .notifyFollows) ?? true
+            notifyMessages = try c.decodeIfPresent(Bool.self, forKey: .notifyMessages) ?? true
+            notifyOrders = try c.decodeIfPresent(Bool.self, forKey: .notifyOrders) ?? true
+            notifyPromotions = try c.decodeIfPresent(Bool.self, forKey: .notifyPromotions) ?? false
+            pauseAllNotifications = try c.decodeIfPresent(Bool.self, forKey: .pauseAllNotifications) ?? false
+            filterSensitive = try c.decodeIfPresent(Bool.self, forKey: .filterSensitive) ?? true
+            hideLikeCounts = try c.decodeIfPresent(Bool.self, forKey: .hideLikeCounts) ?? false
+            email = try c.decodeIfPresent(String.self, forKey: .email) ?? "oscar@picartdo.app"
+            phone = try c.decodeIfPresent(String.self, forKey: .phone) ?? ""
+            language = try c.decodeIfPresent(String.self, forKey: .language) ?? "English"
+            currency = try c.decodeIfPresent(String.self, forKey: .currency) ?? "CAD"
+            measurement = try c.decodeIfPresent(String.self, forKey: .measurement) ?? "cm"
+            twoFactor = try c.decodeIfPresent(Bool.self, forKey: .twoFactor) ?? false
+            loginAlerts = try c.decodeIfPresent(Bool.self, forKey: .loginAlerts) ?? true
+        }
     }
 
     struct BlockedUser: Codable, Identifiable, Equatable, Hashable {

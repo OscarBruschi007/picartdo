@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var hideTabBar = false
     @State private var selectedTab: Int
     @State private var visitedTabs: Set<Int>
+    @State private var homeRootTick = 0
 
     init() {
         let launch = Self.launchTab
@@ -81,6 +82,7 @@ struct ContentView: View {
             .animation(PicardoMotion.transition, value: hideTabBar)
         }
         .background(Color.picardoBackground)
+        .environment(\.homeRootTick, homeRootTick)
         .environment(\.heroVideoEnabled, selectedTab == 1)
         .environment(\.feedVideoEnabled, selectedTab == 0)
         .onChange(of: selectedTab) { _, tab in
@@ -103,6 +105,9 @@ struct ContentView: View {
 
     private func selectTab(_ tag: Int) {
         visitedTabs.insert(tag)
+        if tag == 0 {
+            homeRootTick += 1
+        }
         selectedTab = tag
     }
 

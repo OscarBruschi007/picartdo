@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Network
 import UIKit
 
 // MARK: - Picasso Chat ViewModel (Claude Messages API)
@@ -17,6 +18,9 @@ final class ChatViewModel: ObservableObject {
     @Published var showSuggestions: Bool = true
     /// Debug builds without a backend session: true until a developer key is available.
     @Published private(set) var needsDeveloperKey = false
+    @Published private(set) var isNetworkAvailable = true
+    @Published private(set) var showsConnectionHelp = false
+    @Published private(set) var keyError: String?
 
     static let suggestedPrompts = [
         "Find me something under $800",
@@ -27,6 +31,7 @@ final class ChatViewModel: ObservableObject {
 
     private let contextLimit = 16
     private var lastFailedUserText: String?
+    private var pathMonitor: NWPathMonitor?
 
     init() {
         seedWelcome()
@@ -103,12 +108,33 @@ final class ChatViewModel: ObservableObject {
         return await SupabaseClient.shared.currentAccessToken() != nil
     }
 
+    func startNetworkMonitor() {
+        guard pathMonitor == nil else {
+            Task { await refreshKeyState() }
+            return
+        }
+        let monitor = NWPathMonitor()
+        pathMonitor = monitor
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                guard let self else { return }
+                self.isNetworkAvailable = path.status == .satisfied
+                await self.refreshKeyState()
+            }
+        }
+        monitor.start(queue: DispatchQueue(label: "com.picartdo.picasso.network"))
+        Task { await refreshKeyState() }
+    }
+
     func refreshKeyState() async {
-        #if DEBUG
         let backend = await usesBackend()
-        needsDeveloperKey = !backend && (PicassoAPIKeyStore.resolve() ?? "").isEmpty
+        #if DEBUG
+        let hasKey = !(PicassoAPIKeyStore.resolve() ?? "").isEmpty
+        needsDeveloperKey = !backend && !hasKey
+        showsConnectionHelp = !isNetworkAvailable || needsDeveloperKey
         #else
         needsDeveloperKey = false
+        showsConnectionHelp = !isNetworkAvailable || (AppConfig.isBackendConfigured && !backend)
         #endif
     }
 
@@ -117,8 +143,14 @@ final class ChatViewModel: ObservableObject {
     func saveDeveloperKey(_ key: String) {
         #if DEBUG
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, PicassoAPIKeyStore.saveToKeychain(trimmed) else { return }
+        guard !trimmed.isEmpty else { return }
+        guard PicassoAPIKeyStore.saveToKeychain(trimmed) else {
+            keyError = "Couldn't save the key. Try again."
+            return
+        }
+        keyError = nil
         needsDeveloperKey = false
+        Task { await refreshKeyState() }
         if let last = messages.last, last.isError, last.canRetry { retryLast() }
         #endif
     }
@@ -131,7 +163,7 @@ final class ChatViewModel: ObservableObject {
             return
         }
         #if DEBUG
-        if !(PicassoAPIKeyStore.resolve() ?? "").isEmpty {
+        if isNetworkAvailable, !(PicassoAPIKeyStore.resolve() ?? "").isEmpty {
             await requestLocalAgentReply()
             return
         }

@@ -80,7 +80,6 @@ struct ExploreView: View {
             .navigationDestination(for: Artwork.self) { ArtworkDetailView(artwork: $0) }
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
-                    .picardoPushedScreen()
             }
         }
     }
@@ -467,16 +466,16 @@ struct PinterestMasonryGrid<Content: View>: View {
 }
 
 enum PinterestPinMetrics {
+    /// Polaroid well is square, plus the white lip and caption.
     static func aspectRatio(for artwork: Artwork) -> CGFloat {
-        let size = ArtworkImageCache.shared.pixelSize(for: artwork)
-        guard size.width > 0 else { return 1.0 }
-        let raw = size.height / size.width
-        return min(max(raw, 0.75), 1.45)
+        _ = artwork
+        return 1
     }
 
     static func estimatedHeight(for artwork: Artwork) -> CGFloat {
+        _ = artwork
         let columnWidth: CGFloat = 180
-        return columnWidth * aspectRatio(for: artwork) + 44
+        return columnWidth + 26 + 44
     }
 }
 

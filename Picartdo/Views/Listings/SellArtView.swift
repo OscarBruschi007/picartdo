@@ -51,10 +51,6 @@ struct SellArtView: View {
 
     private var identity: ProfileIdentity { .load() }
 
-    private var panelShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 36, style: .continuous)
-    }
-
     var isFormValid: Bool {
         switch mode {
         case .post:
@@ -79,24 +75,17 @@ struct SellArtView: View {
                 }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 12)
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
-            ZStack {
-                panelShape.fill(Color.picardoBackground.opacity(0.88))
-                panelShape
-                    .fill(.clear)
-                    .glassEffect(.regular, in: panelShape)
-            }
+            Rectangle()
+                .fill(.clear)
+                .glassEffect(.regular, in: Rectangle())
+                .overlay(Color.picardoBackground.opacity(0.22))
+                .ignoresSafeArea()
         }
-        .clipShape(panelShape)
-        .overlay {
-            panelShape.strokeBorder(.white.opacity(0.34), lineWidth: 1)
-        }
-        .padding(10)
-        .background(.clear)
         .onAppear {
             if shipsFrom.isEmpty { shipsFrom = identity.studioCity }
             if location.isEmpty { location = identity.location }
@@ -107,8 +96,8 @@ struct SellArtView: View {
             Button("Done") { dismiss() }
         } message: {
             Text(mode == .post
-                 ? "Your post is live on PICARDO."
-                 : "\"\(title)\" is now live on PICARDO.")
+                 ? "Your post is live on Picartdo."
+                 : "\"\(title)\" is now live on Picartdo.")
         }
         .sheet(isPresented: $showAuth) { AuthRequiredSheet() }
         .alert("Could not list artwork", isPresented: .init(
@@ -167,7 +156,7 @@ struct SellArtView: View {
             }
         }
         .padding(.horizontal, 4)
-        .background(Color.picardoBackground.opacity(0.55), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(Color.picardoBackground.opacity(0.28), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(.white.opacity(0.28), lineWidth: 1)
@@ -180,14 +169,15 @@ struct SellArtView: View {
                 if let selectedImage {
                     Image(uiImage: selectedImage)
                         .resizable()
-                        .scaledToFill()
+                        .scaledToFit()
+                        .padding(10)
                 } else {
                     VStack(spacing: 8) {
                         Image(systemName: mode == .post ? "camera.fill" : "photo")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(.primary)
                             .frame(width: 44, height: 44)
-                            .background(Color.picardoBackground.opacity(0.7), in: Circle())
+                            .background(Color.picardoBackground.opacity(0.32), in: Circle())
                         Text(mode == .post ? "Add a photo" : "Photograph the work")
                             .font(PicardoType.title(16))
                             .foregroundStyle(.primary)
@@ -198,7 +188,6 @@ struct SellArtView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .clipped()
             .overlay {
                 if isAutofilling {
                     Color.black.opacity(0.18)
@@ -206,7 +195,7 @@ struct SellArtView: View {
                 }
             }
             .overlay { goldCorners() }
-            .background(Color.picardoBackground.opacity(0.55), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(Color.picardoBackground.opacity(0.28), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
                     .strokeBorder(.white.opacity(0.34), lineWidth: 1)
@@ -258,7 +247,7 @@ struct SellArtView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .top)
-        .background(Color.picardoBackground.opacity(0.62), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color.picardoBackground.opacity(0.30), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .strokeBorder(.white.opacity(0.34), lineWidth: 1)
@@ -276,11 +265,11 @@ struct SellArtView: View {
                         .font(PicardoType.title(16))
                         .foregroundStyle(.primary)
                         .tint(Color.picardoNeonRed)
-                    TextField("The story behind it", text: $caption, axis: .vertical)
+                    TextField("Description", text: $caption, axis: .vertical)
                         .font(PicardoType.body(13))
                         .foregroundStyle(.primary)
                         .tint(Color.picardoNeonRed)
-                        .lineLimit(1...2)
+                        .lineLimit(2...5)
                 }
             }
 
@@ -335,7 +324,7 @@ struct SellArtView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .top)
-        .background(Color.picardoBackground.opacity(0.62), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color.picardoBackground.opacity(0.30), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .strokeBorder(.white.opacity(0.34), lineWidth: 1)
@@ -364,7 +353,7 @@ struct SellArtView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.picardoBackground.opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.picardoBackground.opacity(0.24), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(.white.opacity(0.28), lineWidth: 1)
@@ -398,7 +387,7 @@ struct SellArtView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.picardoBackground.opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.picardoBackground.opacity(0.24), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(.white.opacity(0.28), lineWidth: 1)
@@ -435,7 +424,7 @@ struct SellArtView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
-        .background(Color.picardoBackground.opacity(0.55), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.picardoBackground.opacity(0.24), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(.white.opacity(0.28), lineWidth: 1)

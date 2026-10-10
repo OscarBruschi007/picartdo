@@ -74,34 +74,38 @@ struct ArtistChatView: View {
 
 extension View {
     func messageComposer(artwork: Binding<Artwork?>) -> some View {
-        sheet(item: artwork) { piece in
+        fullScreenCover(item: artwork) { piece in
             NavigationStack {
                 ArtistChatView(artwork: piece)
             }
+            .presentationBackground(Color.picardoBackground)
         }
     }
 
     func messageComposer(artist: Binding<Artist?>) -> some View {
-        sheet(item: artist) { person in
+        fullScreenCover(item: artist) { person in
             NavigationStack {
                 ArtistChatView(artist: person)
             }
+            .presentationBackground(Color.picardoBackground)
         }
     }
 
     func messageComposer(isPresented: Binding<Bool>, artwork: Artwork) -> some View {
-        sheet(isPresented: isPresented) {
+        fullScreenCover(isPresented: isPresented) {
             NavigationStack {
                 ArtistChatView(artwork: artwork)
             }
+            .presentationBackground(Color.picardoBackground)
         }
     }
 
     func messageComposer(isPresented: Binding<Bool>, artist: Artist) -> some View {
-        sheet(isPresented: isPresented) {
+        fullScreenCover(isPresented: isPresented) {
             NavigationStack {
                 ArtistChatView(artist: artist)
             }
+            .presentationBackground(Color.picardoBackground)
         }
     }
 }

@@ -1,235 +1,152 @@
 import SwiftUI
+import LocalAuthentication
 
-/// Gallery product page — large uncropped artwork on white, editorial
-/// type, expandable details, understated CTAs. Artwork supplies the color.
+/// Gallery product page — title on the piece, placard always visible.
 struct ArtworkDetailView: View {
     let artwork: Artwork
     @Environment(WishlistStore.self) private var wishlist
     @Environment(SessionStore.self) private var session
-    @State private var showBuySheet = false
     @State private var showAuth = false
     @State private var showMessages = false
-    @State private var detailsExpanded = false
-    @State private var showWallTest = false
 
-    private var isLiked: Bool { wishlist.isLiked(artwork) }
-    private var isSaved: Bool { wishlist.isLiked(artwork) }
+    private var isWanted: Bool { wishlist.isLiked(artwork) }
+
+    private var pieceDescription: String {
+        let story = artwork.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !story.isEmpty { return story }
+        return "\(artwork.category.rawValue) on Picartdo."
+    }
+
+    private var materialsLine: String {
+        var parts: [String] = []
+        let medium = artwork.medium.trimmingCharacters(in: .whitespacesAndNewlines)
+        let size = artwork.dimensions.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !medium.isEmpty { parts.append(medium) }
+        if !size.isEmpty { parts.append(size) }
+        parts.append("Original 1 of 1")
+        return parts.joined(separator: " · ")
+    }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 0) {
-
-                // Artwork hero
-                ZStack(alignment: .bottomTrailing) {
-                    ArtworkImage(imageName: artwork.imageName, contentMode: .fit, maxDimension: 1400)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 420)
-                        .padding(.horizontal, 20)
-
-                    if !artwork.isSold {
-                        Button { showWallTest = true } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "photo.on.rectangle.angled")
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text("Wall Test")
-                                    .font(.system(size: 13, weight: .semibold))
-                            }
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .background(.black.opacity(0.55), in: Capsule())
-                        }
-                        .padding(.trailing, 32)
-                        .padding(.bottom, 12)
-                    }
-                }
-                .padding(.top, 12)
-                .padding(.bottom, 28)
-
-                // Minimal identity — details expand on demand
-                VStack(alignment: .leading, spacing: 12) {
-                    PicardoEyebrow(text: artwork.category.rawValue)
-
-                    Text(artwork.title)
-                        .font(PicardoType.display(30))
-                        .foregroundStyle(Color.picardoText)
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    ArtistNameLink(
-                        name: artwork.artistName,
-                        font: PicardoType.body(16),
-                        color: Color.picardoTextSecondary,
-                        italic: true,
-                        lineLimit: nil
-                    )
-
-                    HStack(spacing: 12) {
-                        Text(artwork.price, format: .currency(code: "USD").precision(.fractionLength(0)))
-                            .font(.system(size: 20, weight: .semibold))
-                            .foregroundStyle(Color.picardoText)
-
-                        if artwork.isSold {
-                            Text("SOLD")
-                                .picardoMetaStyle(kerning: 1)
-                                .foregroundStyle(Color.picardoTextSecondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .overlay(Rectangle().strokeBorder(Color.picardoBorder, lineWidth: 1))
-                        }
-
-                        Spacer()
-
-                        Text(detailsExpanded ? "LESS" : "DETAILS")
-                            .picardoMetaStyle(kerning: 1.2)
-                            .foregroundStyle(Color.picardoAccent)
-                            .onTapGesture {
-                                withAnimation(PicardoMotion.transition) {
-                                    detailsExpanded.toggle()
-                                }
-                            }
-                    }
-                    .padding(.top, 4)
-                }
+        VStack(spacing: 0) {
+            Text(artwork.title)
+                .font(PicardoType.display(28))
+                .foregroundStyle(Color.picardoText)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.78)
+                .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
-                .padding(.bottom, 20)
+                .padding(.top, 10)
+                .padding(.bottom, 12)
 
-                if detailsExpanded {
-                    VStack(alignment: .leading, spacing: 0) {
-                        Rectangle().fill(Color.picardoDivider).frame(height: 1)
+            pieceImage
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                        VStack(alignment: .leading, spacing: 16) {
-                            artistSpecRow
-                            specRow("TECHNIQUE", artwork.medium)
-                            specRow("MATERIALS", artwork.medium)
-                            specRow("DIMENSIONS", artwork.dimensions)
-                            specRow("PRICE", artwork.price.formatted(.currency(code: "USD").precision(.fractionLength(0))))
-                            specRow("CERTIFICATE", "Included")
-                            specRow("EDITION", "1 of 1 · Original")
-                        }
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 24)
+            VStack(alignment: .leading, spacing: 6) {
+                ArtistNameLink(
+                    name: artwork.artistName,
+                    font: PicardoType.body(16),
+                    color: Color.picardoTextSecondary,
+                    italic: true,
+                    lineLimit: nil
+                )
 
-                        if !artwork.description.isEmpty {
-                            Rectangle().fill(Color.picardoDivider).frame(height: 1).padding(.horizontal, 24)
-
-                            VStack(alignment: .leading, spacing: 10) {
-                                PicardoEyebrow(text: "Story")
-                                Text(artwork.description)
-                                    .font(PicardoType.body(15))
-                                    .italic()
-                                    .foregroundStyle(Color.picardoText.opacity(0.85))
-                                    .lineSpacing(6)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            .padding(.horizontal, 24)
-                            .padding(.vertical, 24)
-                        }
-
-                        Rectangle().fill(Color.picardoDivider).frame(height: 1)
-
-                        HStack(spacing: 0) {
-                            ArtworkTrustBadge(icon: "checkmark.seal", label: "Certificate")
-                            ArtworkTrustBadge(icon: "shippingbox", label: "Shipping")
-                            ArtworkTrustBadge(icon: "arrow.uturn.left", label: "Returns")
-                        }
-                        .padding(.vertical, 18)
+                HStack(spacing: 10) {
+                    Text(artwork.price, format: .currency(code: "USD").precision(.fractionLength(0)))
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Color.picardoNeonRed)
+                    if artwork.isSold {
+                        Text("SOLD")
+                            .picardoMetaStyle(kerning: 1)
+                            .foregroundStyle(Color.picardoTextSecondary)
                     }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
                 }
 
-                Color.clear.frame(height: 120)
+                Text(pieceDescription)
+                    .font(PicardoType.body(15))
+                    .foregroundStyle(Color.picardoText.opacity(0.9))
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text(materialsLine)
+                    .font(PicardoType.meta(11))
+                    .kerning(0.4)
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 24)
+            .padding(.top, 14)
+            .padding(.bottom, 12)
+
+            listingActions
         }
         .background(Color.picardoBackground)
-        .navigationBarTitleDisplayMode(.inline)
-        .picardoPushedScreen()
+        .picardoSwipeBackOnly()
         .navigationDestination(for: Artist.self) { artist in
             ArtistStoreView(artist: artist)
-                .picardoPushedScreen()
-        }
-        .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: 18) {
-                    Button {
-                        withAnimation(PicardoMotion.quick) { wishlist.toggle(artwork) }
-                    } label: {
-                        Image(systemName: isLiked ? "heart.fill" : "heart")
-                            .foregroundStyle(isLiked ? Color.picardoAccent : Color.picardoText)
-                            .scaleEffect(isLiked ? 1.08 : 1)
-                    }
-                    Button {
-                        withAnimation(PicardoMotion.quick) { wishlist.toggle(artwork) }
-                    } label: {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
-                            .foregroundStyle(isSaved ? Color.picardoAccent : Color.picardoText)
-                    }
-                }
-            }
-        }
-        .safeAreaInset(edge: .bottom) {
-            VStack(spacing: 10) {
-                PicardoPrimaryButton(
-                    title: artwork.isSold ? "SOLD OUT" : "ADD TO COLLECTION",
-                    enabled: !artwork.isSold
-                ) {
-                    showBuySheet = true
-                }
-                PicardoSecondaryButton(title: "MESSAGE ARTIST") {
-                    if AppConfig.isBackendConfigured && !session.isAuthenticated {
-                        showAuth = true
-                    } else {
-                        showMessages = true
-                    }
-                }
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 12)
-            .padding(.bottom, 10)
-            .background(Color.picardoBackground)
-        }
-        .sheet(isPresented: $showBuySheet) {
-            BuyConfirmationSheet(artwork: artwork)
-        }
-        .sheet(isPresented: $showWallTest) {
-            WallTestView(artwork: artwork)
         }
         .sheet(isPresented: $showAuth) { AuthRequiredSheet() }
-        .sheet(isPresented: $showMessages) {
+        .fullScreenCover(isPresented: $showMessages) {
             NavigationStack {
                 ArtistChatView(artwork: artwork)
             }
+            .presentationBackground(Color.picardoBackground)
         }
     }
 
-    private var artistSpecRow: some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text("ARTIST")
-                .font(PicardoType.meta(10))
-                .kerning(1)
-                .foregroundStyle(Color.picardoTextSecondary)
-                .frame(width: 110, alignment: .leading)
-            ArtistNameLink(
-                name: artwork.artistName,
-                font: .system(size: 14),
-                color: Color.picardoText,
-                lineLimit: nil
-            )
-            Spacer(minLength: 0)
+    private var pieceImage: some View {
+        PolaroidFrame(inset: 12, bottomLip: 36, cornerRadius: 6) {
+            ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: 1400)
         }
+        .padding(.horizontal, 16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func specRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top, spacing: 0) {
-            Text(label)
-                .font(PicardoType.meta(10))
-                .kerning(1)
-                .foregroundStyle(Color.picardoTextSecondary)
-                .frame(width: 110, alignment: .leading)
-            Text(value.isEmpty ? "—" : value)
-                .font(.system(size: 14))
-                .foregroundStyle(Color.picardoText)
-            Spacer(minLength: 0)
+    /// Equal-width Inquire + Wants, above the floating tab bar.
+    private var listingActions: some View {
+        HStack(spacing: 10) {
+            Button {
+                if AppConfig.isBackendConfigured && !session.isAuthenticated {
+                    showAuth = true
+                } else {
+                    showMessages = true
+                }
+            } label: {
+                Text("INQUIRE")
+                    .font(PicardoType.cta())
+                    .kerning(0.8)
+                    .foregroundStyle(Color.picardoText)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+            }
+            .buttonStyle(PicardoPressStyle())
+            .glassEffect(.regular.interactive(), in: Capsule())
+            .accessibilityLabel("Inquire")
+
+            Button {
+                withAnimation(PicardoMotion.quick) { wishlist.toggle(artwork) }
+            } label: {
+                Text(artwork.isSold ? "SOLD OUT" : (isWanted ? "WANTED" : "WANTS"))
+                    .font(PicardoType.cta())
+                    .kerning(0.8)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 15)
+                    .background(
+                        artwork.isSold
+                            ? Color.picardoTextSecondary
+                            : Color.picardoNeonRed,
+                        in: Capsule()
+                    )
+            }
+            .buttonStyle(PicardoPressStyle())
+            .disabled(artwork.isSold)
+            .accessibilityLabel(artwork.isSold ? "Sold out" : (isWanted ? "Wanted" : "Wants"))
         }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 72)
     }
 }
 
@@ -506,6 +423,235 @@ struct CardPickerView: View {
     }
 }
 
+// MARK: - Apple Pay + Face ID + Dynamic Island
+
+private enum ApplePayAuthPhase {
+    case island, face, paid
+}
+
+struct ApplePayAuthOverlay: View {
+    let title: String
+    let amount: String
+    var onCancel: () -> Void
+    var onPaid: () -> Void
+
+    @State private var phase: ApplePayAuthPhase = .island
+    @State private var islandWidth: CGFloat = 126
+    @State private var islandHeight: CGFloat = 37
+    @State private var sheetOffset: CGFloat = 420
+    @State private var dimOpacity: Double = 0
+    @State private var scanSpin: Double = 0
+    @State private var cancelled = false
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            Color.black.opacity(dimOpacity)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    guard phase == .island else { return }
+                    cancel()
+                }
+
+            VStack {
+                Spacer()
+                paySheet
+                    .offset(y: sheetOffset)
+            }
+            .ignoresSafeArea(edges: .bottom)
+
+            Capsule(style: .continuous)
+                .fill(.black)
+                .frame(width: islandWidth, height: islandHeight)
+                .overlay { islandContent }
+                .shadow(color: .black.opacity(0.4), radius: 8, y: 2)
+                .padding(.top, 11)
+        }
+        .onAppear { start() }
+    }
+
+    @ViewBuilder
+    private var islandContent: some View {
+        switch phase {
+        case .island:
+            HStack(spacing: 8) {
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.white)
+                Text("Pay")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+            .opacity(islandWidth > 160 ? 1 : 0)
+        case .face:
+            HStack(spacing: 10) {
+                Image(systemName: "faceid")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.white)
+                    .rotationEffect(.degrees(scanSpin))
+                Text("Face ID")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        case .paid:
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(Color(red: 0.20, green: 0.84, blue: 0.29))
+                Text(amount)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+            }
+        }
+    }
+
+    private var paySheet: some View {
+        VStack(spacing: 18) {
+            Capsule()
+                .fill(Color.black.opacity(0.12))
+                .frame(width: 36, height: 5)
+                .padding(.top, 8)
+
+            HStack {
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 18, weight: .semibold))
+                Text("Pay")
+                    .font(.system(size: 20, weight: .semibold))
+                Spacer()
+                Button("Cancel") { cancel() }
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color(red: 0.0, green: 0.48, blue: 1.0))
+            }
+            .padding(.horizontal, 4)
+
+            VStack(spacing: 4) {
+                Text("Picartdo")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text(amount)
+                    .font(.system(size: 34, weight: .bold))
+                Text(title)
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.top, 4)
+
+            HStack(spacing: 12) {
+                Image(systemName: phase == .paid ? "checkmark.circle.fill" : "faceid")
+                    .font(.system(size: 28, weight: .medium))
+                    .foregroundStyle(phase == .paid ? Color(red: 0.20, green: 0.84, blue: 0.29) : .primary)
+                    .symbolEffect(.pulse, isActive: phase == .face)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(phaseCopy)
+                        .font(.system(size: 16, weight: .semibold))
+                    Text(phase == .island ? "Side Button" : (phase == .face ? "Look at iPhone" : "Picartdo"))
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(14)
+            .background(Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .padding(20)
+        .padding(.bottom, 18)
+        .background(.ultraThickMaterial, in: UnevenRoundedRectangle(topLeadingRadius: 28, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 28, style: .continuous))
+    }
+
+    private var phaseCopy: String {
+        switch phase {
+        case .island: return "Double Click to Pay"
+        case .face: return "Confirm with Face ID"
+        case .paid: return "Payment Complete"
+        }
+    }
+
+    private func start() {
+        withAnimation(.easeOut(duration: 0.25)) { dimOpacity = 0.55 }
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.78)) {
+            islandWidth = 168
+            islandHeight = 44
+            sheetOffset = 0
+        }
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+
+        Task { await runAuth() }
+    }
+
+    private func runAuth() async {
+        try? await Task.sleep(for: .milliseconds(700))
+        guard !cancelled else { return }
+
+        UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        withAnimation(.spring(response: 0.38, dampingFraction: 0.8)) {
+            phase = .face
+            islandWidth = 196
+            islandHeight = 52
+        }
+        withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+            scanSpin = 360
+        }
+
+        let ok = await requestFaceID()
+        guard !cancelled else { return }
+
+        if !ok {
+            cancel()
+            return
+        }
+
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        withAnimation(.spring(response: 0.4, dampingFraction: 0.72)) {
+            phase = .paid
+            islandWidth = 168
+            islandHeight = 44
+            scanSpin = 0
+        }
+
+        try? await Task.sleep(for: .milliseconds(900))
+        guard !cancelled else { return }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+            islandWidth = 126
+            islandHeight = 37
+            sheetOffset = 420
+            dimOpacity = 0
+        }
+        try? await Task.sleep(for: .milliseconds(380))
+        guard !cancelled else { return }
+        onPaid()
+    }
+
+    private func requestFaceID() async -> Bool {
+        let context = LAContext()
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            try? await Task.sleep(for: .milliseconds(1100))
+            return !cancelled
+        }
+        do {
+            return try await context.evaluatePolicy(
+                .deviceOwnerAuthenticationWithBiometrics,
+                localizedReason: "Confirm your Apple Pay purchase on Picartdo"
+            )
+        } catch {
+            return false
+        }
+    }
+
+    private func cancel() {
+        cancelled = true
+        withAnimation(.easeInOut(duration: 0.28)) {
+            sheetOffset = 420
+            dimOpacity = 0
+            islandWidth = 126
+            islandHeight = 37
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            onCancel()
+        }
+    }
+}
+
 // MARK: - Purchase Burst Animation
 
 struct PurchaseBurstView: View {
@@ -599,45 +745,54 @@ struct BuyConfirmationSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(SessionStore.self) private var session
 
-    private enum Step { case details, payment, cardEntry, success }
-    @State private var step: Step = .details
-    @State private var selectedCard: Int = 0
+    @State private var didSucceed = false
+    @State private var showCard = false
     @State private var isProcessing = false
     @State private var showAuth = false
     @State private var showSafari = false
     @State private var safariURL: URL?
     @State private var paymentError: String?
 
-    // Card entry fields
     @State private var cardNumber = ""
     @State private var cardName   = ""
     @State private var expiry     = ""
     @State private var cvv        = ""
     @State private var isScanning = false
     @State private var scanProgress: CGFloat = 0
+    @State private var showApplePayAuth = false
+    @State private var shipName = ""
+    @State private var shipLine1 = ""
+    @State private var shipCity = ""
+    @State private var shipState = ""
+    @State private var shipZIP = ""
+    @State private var shipCountry = "United States"
 
     var body: some View {
         NavigationStack {
             Group {
-                switch step {
-                case .details:   purchaseView
-                case .payment:   paymentView
-                case .cardEntry: cardEntryView
-                case .success:   successView
+                if didSucceed {
+                    PurchaseBurstView(title: artwork.title) { dismiss() }
+                } else {
+                    checkoutPage
                 }
             }
             .background(PicartdoBackground().ignoresSafeArea())
-            .navigationTitle(navTitle)
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if step != .success {
+                if !didSucceed {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button(backLabel) { goBack() }
+                        Button("Cancel") { dismiss() }
                             .foregroundStyle(.secondary)
+                    }
+                    ToolbarItem(placement: .principal) {
+                        Text(artwork.title)
+                            .font(PicardoType.display(18))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
                 }
             }
-            .animation(.easeInOut(duration: 0.28), value: step)
         }
         .sheet(isPresented: $showAuth) { AuthRequiredSheet() }
         .sheet(isPresented: $showSafari) {
@@ -651,112 +806,176 @@ struct BuyConfirmationSheet: View {
         } message: {
             Text(paymentError ?? "")
         }
-    }
-
-    private var navTitle: String {
-        switch step {
-        case .details:   return "Purchase"
-        case .payment:   return "Pay"
-        case .cardEntry: return "Card Details"
-        case .success:   return ""
-        }
-    }
-    private var backLabel: String { step == .details ? "Cancel" : "Back" }
-    private func goBack() {
-        switch step {
-        case .details:   dismiss()
-        case .payment:   step = .details
-        case .cardEntry: step = .payment
-        case .success:   dismiss()
-        }
-    }
-
-    // ── Payment screen ───────────────────────────────────────────────────────
-    private var paymentView: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 28) {
-
-                // Swipeable card picker
-                CardPickerView(selectedIndex: $selectedCard)
-                    .padding(.top, 4)
-
-                // Order chip
-                HStack(spacing: 14) {
-                    ArtworkImage(artwork: artwork, contentMode: .fill)
-                        .frame(width: 52, height: 52)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(artwork.title).font(.system(size: 15, weight: .semibold))
-                        Text("by \(artwork.artistName)").font(.system(size: 13)).foregroundStyle(.secondary)
+        .overlay {
+            if showApplePayAuth {
+                ApplePayAuthOverlay(
+                    title: artwork.title,
+                    amount: money(orderTotal),
+                    onCancel: { showApplePayAuth = false },
+                    onPaid: {
+                        showApplePayAuth = false
+                        Task { await processPayment(useCheckout: true) }
                     }
+                )
+                .ignoresSafeArea()
+            }
+        }
+    }
+
+    private var pieceCopy: String {
+        let story = artwork.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !story.isEmpty { return story }
+        return "\(artwork.category.rawValue) on Picartdo."
+    }
+
+    private var shipsDomestic: Bool {
+        let country = shipCountry.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return country.isEmpty
+            || country == "us"
+            || country == "usa"
+            || country == "united states"
+    }
+
+    private var shippingCost: Double { shipsDomestic ? 65 : 145 }
+    private var taxAmount: Double {
+        let rate = shipsDomestic ? 0.07 : 0
+        return (artwork.price * rate * 100).rounded() / 100
+    }
+    private var orderTotal: Double { artwork.price + shippingCost + taxAmount }
+
+    private var canPay: Bool {
+        !shipName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !shipLine1.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !shipCity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !shipZIP.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func money(_ value: Double) -> String {
+        value.formatted(.currency(code: "USD").precision(.fractionLength(2)))
+    }
+
+    private var checkoutPage: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: 1400)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .shadow(color: .black.opacity(0.28), radius: 12, y: 6)
+                .padding(.horizontal, 24)
+
+            HStack(alignment: .firstTextBaseline) {
+                ArtistNameLink(
+                    name: artwork.artistName,
+                    prefix: "by ",
+                    font: PicardoType.body(14),
+                    italic: true
+                )
+                Spacer(minLength: 8)
+                Text(money(artwork.price))
+                    .font(.system(size: 20, weight: .black))
+                    .foregroundStyle(Color.picardoNeonRed)
+            }
+
+            Text("Ship to")
+                .font(PicardoType.meta(10))
+                .kerning(0.8)
+                .foregroundStyle(Color.picardoTextSecondary)
+
+            addressFields
+
+            VStack(spacing: 6) {
+                totalRow("Work", money(artwork.price))
+                totalRow("Shipping · insured crate", money(shippingCost))
+                totalRow(shipsDomestic ? "Tax · 7%" : "Tax", money(taxAmount))
+                Rectangle().fill(Color.picardoDivider).frame(height: 0.5).padding(.vertical, 2)
+                HStack {
+                    Text("Total")
+                        .font(.system(size: 16, weight: .bold))
                     Spacer()
-                    Text(artwork.price, format: .currency(code: "USD"))
-                        .font(.system(size: 15, weight: .black))
+                    Text(money(orderTotal))
+                        .font(.system(size: 20, weight: .black))
                         .foregroundStyle(Color.picardoNeonRed)
                 }
-                .padding(14)
-                .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.picardoBorder, lineWidth: 0.5))
-
-                // Title
-                HStack {
-                    Text("Choose how to pay")
-                        .font(.system(size: 18, weight: .bold))
-                    Spacer()
-                }
-
-                // Apple Pay
-                Button {
-                    Task { await processPayment(useCheckout: true) }
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: "apple.logo").font(.system(size: 18, weight: .semibold))
-                        Text("Pay").font(.system(size: 19, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 17)
-                    .background(Color.black, in: RoundedRectangle(cornerRadius: 16))
-                }
-
-                // Or divider
-                HStack(spacing: 12) {
-                    Rectangle().fill(Color.picardoBorder).frame(height: 0.5)
-                    Text("or").font(.system(size: 13)).foregroundStyle(.secondary)
-                    Rectangle().fill(Color.picardoBorder).frame(height: 0.5)
-                }
-
-                // Credit / Debit
-                Button {
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { step = .cardEntry }
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "creditcard.fill").font(.system(size: 16))
-                        Text("Credit or Debit Card").font(.system(size: 16, weight: .semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 17)
-                    .background(Color.picardoNeonRed, in: RoundedRectangle(cornerRadius: 16))
-                }
-
-                HStack(spacing: 5) {
-                    Image(systemName: "lock.fill").font(.system(size: 11))
-                    Text("Secure & encrypted payments")
-                        .font(.system(size: 12))
-                }
-                .foregroundStyle(.secondary)
             }
-            .padding(24)
+
+            if !canPay {
+                Text("Add a shipping address to pay.")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.picardoNeonRed)
+                    .frame(maxWidth: .infinity)
+            }
+
+            if showCard {
+                cardFields
+            } else {
+                HStack(spacing: 10) {
+                    Button {
+                        guard canPay else { return }
+                        showApplePayAuth = true
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "apple.logo").font(.system(size: 17, weight: .semibold))
+                            Text("Pay").font(.system(size: 17, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color.black.opacity(canPay ? 1 : 0.35), in: Capsule())
+                    }
+                    .disabled(!canPay)
+
+                    Button {
+                        guard canPay else { return }
+                        withAnimation(PicardoMotion.quick) { showCard = true }
+                    } label: {
+                        Text("Card")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.picardoNeonRed.opacity(canPay ? 1 : 0.35), in: Capsule())
+                    }
+                    .disabled(!canPay)
+                }
+            }
+
+            Text("Packed and tracked · 7–14 days · 14-day returns")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
+    }
+
+    private var addressFields: some View {
+        VStack(spacing: 6) {
+            cardField(icon: "person", placeholder: "Full name", text: $shipName)
+            cardField(icon: "house", placeholder: "Street address", text: $shipLine1)
+            HStack(spacing: 6) {
+                cardField(icon: "building.2", placeholder: "City", text: $shipCity)
+                cardField(icon: "map", placeholder: "State", text: $shipState)
+            }
+            HStack(spacing: 6) {
+                cardField(icon: "number", placeholder: "ZIP", text: $shipZIP)
+                cardField(icon: "globe", placeholder: "Country", text: $shipCountry)
+            }
         }
     }
 
-    // ── Card entry screen ────────────────────────────────────────────────────
-    private var cardEntryView: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 22) {
+    private func totalRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 14, weight: .semibold))
+        }
+    }
 
-                // Scan button
+    private var cardFields: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 8) {
                 Button {
                     isScanning = true
                     scanProgress = 0
@@ -770,80 +989,68 @@ struct BuyConfirmationSheet: View {
                         scanProgress = 0
                     }
                 } label: {
-                    ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color.picardoCard)
-                            .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.picardoBorder, lineWidth: 0.5))
-                            .frame(height: 54)
-
-                        if isScanning {
-                            RoundedRectangle(cornerRadius: 14)
-                                .fill(Color.picardoGold.opacity(0.15))
-                                .frame(width: UIScreen.main.bounds.width * scanProgress - 48, height: 54)
-                                .animation(.linear(duration: 1.6), value: scanProgress)
-                        }
-
-                        HStack(spacing: 10) {
-                            Image(systemName: isScanning ? "viewfinder" : "camera.fill")
-                                .font(.system(size: 16))
-                                .foregroundStyle(Color.picardoGold)
-                                .symbolEffect(.pulse, isActive: isScanning)
-                            Text(isScanning ? "Scanning card..." : "Scan Card to Autofill")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(Color.picardoGold)
-                        }
-                        .padding(.horizontal, 16)
-                    }
+                    Label(isScanning ? "Scanning..." : "Scan", systemImage: isScanning ? "viewfinder" : "camera.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.picardoGold)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.picardoCard, in: Capsule())
                 }
                 .disabled(isScanning)
 
-                // Fields
-                VStack(spacing: 14) {
-                    cardField(icon: "creditcard", placeholder: "Card Number", text: $cardNumber)
-                    cardField(icon: "person",     placeholder: "Name on Card", text: $cardName)
-                    HStack(spacing: 12) {
-                        cardField(icon: "calendar", placeholder: "MM / YY", text: $expiry)
-                        cardField(icon: "lock",     placeholder: "CVV",     text: $cvv)
-                    }
-                }
-
-                // Pay button
                 Button {
-                    Task { await processPayment(useCheckout: true) }
+                    withAnimation(PicardoMotion.quick) { showCard = false }
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "lock.fill").font(.system(size: 14))
-                        Text("Pay \(artwork.price, format: .currency(code: "USD"))")
-                            .font(.system(size: 17, weight: .bold))
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 17)
-                    .background(Color.picardoNeonRed, in: RoundedRectangle(cornerRadius: 16))
+                    Text("Apple Pay")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.black, in: Capsule())
                 }
             }
-            .padding(24)
+
+            cardField(icon: "creditcard", placeholder: "Card Number", text: $cardNumber)
+            cardField(icon: "person", placeholder: "Name on Card", text: $cardName)
+            HStack(spacing: 8) {
+                cardField(icon: "calendar", placeholder: "MM / YY", text: $expiry)
+                cardField(icon: "lock", placeholder: "CVV", text: $cvv)
+            }
+
+            Button {
+                guard canPay else { return }
+                Task { await processPayment(useCheckout: true) }
+            } label: {
+                Text("Pay \(money(orderTotal))")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.picardoNeonRed.opacity(canPay ? 1 : 0.35), in: Capsule())
+            }
+            .disabled(!canPay)
         }
     }
 
     private func cardField(icon: String, placeholder: String, text: Binding<String>) -> some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             Image(systemName: icon)
-                .font(.system(size: 14))
+                .font(.system(size: 13))
                 .foregroundStyle(Color.picardoGold)
-                .frame(width: 22)
+                .frame(width: 18)
             TextField(placeholder, text: text)
-                .font(.system(size: 15))
+                .font(.system(size: 14))
         }
-        .padding(14)
-        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.picardoBorder, lineWidth: 0.5))
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.picardoBorder, lineWidth: 0.5))
     }
 
     private func processPayment(useCheckout: Bool) async {
-        guard !isProcessing else { return }
+        guard canPay, !isProcessing else { return }
         guard AppConfig.isBackendConfigured else {
-            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { step = .success }
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { didSucceed = true }
             return
         }
         guard session.isAuthenticated else {
@@ -854,11 +1061,12 @@ struct BuyConfirmationSheet: View {
         defer { isProcessing = false }
         do {
             let address: [String: String] = [
-                "line1": "123 Gallery Lane",
-                "city": "Miami",
-                "state": "FL",
-                "postal_code": "33101",
-                "country": "US",
+                "name": shipName.trimmingCharacters(in: .whitespacesAndNewlines),
+                "line1": shipLine1.trimmingCharacters(in: .whitespacesAndNewlines),
+                "city": shipCity.trimmingCharacters(in: .whitespacesAndNewlines),
+                "state": shipState.trimmingCharacters(in: .whitespacesAndNewlines),
+                "postal_code": shipZIP.trimmingCharacters(in: .whitespacesAndNewlines),
+                "country": shipsDomestic ? "US" : shipCountry.trimmingCharacters(in: .whitespacesAndNewlines),
             ]
             let response = try await PaymentService.createPayment(
                 listingID: artwork.id,
@@ -877,9 +1085,9 @@ struct BuyConfirmationSheet: View {
             if let urlString = response.checkoutUrl, let url = URL(string: urlString) {
                 safariURL = url
                 showSafari = true
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { step = .success }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { didSucceed = true }
             } else if response.status == "succeeded" {
-                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { step = .success }
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { didSucceed = true }
             } else {
                 paymentError = response.error ?? "Payment could not be completed."
             }
@@ -888,134 +1096,6 @@ struct BuyConfirmationSheet: View {
         }
     }
 
-    // ── Success screen ────────────────────────────────────────────────────────
-    private var successView: some View {
-        PurchaseBurstView(title: artwork.title) { dismiss() }
-    }
-
-    // ── Purchase screen ───────────────────────────────────────────────────────
-    private var purchaseView: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: 0) {
-
-                // Artwork image
-                ZStack {
-                    Color.picardoCard
-                    ArtworkImage(artwork: artwork, contentMode: .fit)
-                        .frame(maxWidth: .infinity)
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .padding(.horizontal, 20)
-                .padding(.top, 12)
-
-                VStack(alignment: .leading, spacing: 0) {
-
-                    // Title + price
-                    HStack(alignment: .top) {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(artwork.title)
-                                .font(.system(size: 22, weight: .bold))
-                            Text("by \(artwork.artistName)")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text(artwork.price, format: .currency(code: "USD"))
-                            .font(.system(size: 22, weight: .black))
-                            .foregroundStyle(Color.picardoNeonRed)
-                    }
-                    .padding(.top, 20)
-
-                    Divider().padding(.vertical, 16)
-
-                    // Details grid
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
-                        BuyDetailTile(icon: "ruler", label: "Dimensions",
-                                      value: artwork.dimensions.isEmpty ? "—" : artwork.dimensions)
-                        BuyDetailTile(icon: "paintbrush", label: "Medium",
-                                      value: artwork.medium.isEmpty ? "—" : artwork.medium)
-                        BuyDetailTile(icon: "mappin.circle.fill", label: "Ships from", value: "Miami, US")
-                        BuyDetailTile(icon: "tag.fill", label: "Category", value: artwork.category.rawValue)
-                    }
-
-                    Divider().padding(.vertical, 16)
-
-                    // Shipping note
-                    HStack(spacing: 12) {
-                        Image(systemName: "shippingbox.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color.picardoGold)
-                            .frame(width: 36)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Free Worldwide Shipping")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text("Carefully packed and insured. Arrives in 7–14 days.")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(14)
-                    .background(Color.picardoGold.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-
-                    // Buy bar
-                    VStack(spacing: 0) {
-                        Divider().padding(.top, 20)
-                        HStack(spacing: 14) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Total")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                Text(artwork.price, format: .currency(code: "USD"))
-                                    .font(.system(size: 20, weight: .black))
-                            }
-                            Button {
-                                withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                    step = .payment
-                                }
-                            } label: {
-                                Text("Continue to Payment")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundStyle(.white)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 16)
-                                    .background(Color.picardoNeonRed, in: RoundedRectangle(cornerRadius: 14))
-                            }
-                        }
-                        .padding(.vertical, 14)
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
-            }
-        }
-    }
-}
-
-struct BuyDetailTile: View {
-    let icon: String
-    let label: String
-    let value: String
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(Color.picardoGold)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                Text(value)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 12))
-    }
 }
 
 #Preview { NavigationStack { ArtworkDetailView(artwork: Artwork.samples[0]) } }

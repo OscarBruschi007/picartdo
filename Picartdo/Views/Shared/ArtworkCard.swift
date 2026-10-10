@@ -28,6 +28,12 @@ struct ArtworkCard: View {
 
     @State private var showMessage = false
 
+    private var showsMessage: Bool {
+        allowsMessage
+            && SettingsStore.shared.flags.allowMessages
+            && SettingsStore.shared.flags.allowMarketplaceMessages
+    }
+
     var body: some View {
         Group {
             switch variant {
@@ -40,7 +46,7 @@ struct ArtworkCard: View {
             }
         }
         .contextMenu {
-            if allowsMessage {
+            if showsMessage {
                 Button {
                     showMessage = true
                 } label: {
@@ -58,17 +64,11 @@ struct ArtworkCard: View {
 
     // MARK: Shared chrome
 
-    @ViewBuilder
-    private func polaroidImage(height: CGFloat, inner: CGFloat, outer: CGFloat) -> some View {
-        ZStack {
-            Color.picardoPolaroidMat
-            ArtworkImage(artwork: artwork, contentMode: .fit)
-                .padding(inner)
-                .background(Color.picardoPostFrame)
-                .padding(outer)
+    /// Polaroid: square well, full piece inside, white lip at the bottom.
+    private func listingImage(radius: CGFloat) -> some View {
+        PolaroidFrame(inset: radius >= 18 ? 14 : 8, bottomLip: radius >= 18 ? 40 : 26) {
+            ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: 1400)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: height)
     }
 
     @ViewBuilder
@@ -118,8 +118,7 @@ struct ArtworkCard: View {
 
     private var gridBody: some View {
         VStack(spacing: 0) {
-            polaroidImage(height: 168, inner: 12, outer: 10)
-                .clipped()
+            listingImage(radius: 0)
 
             VStack(alignment: .center, spacing: 4) {
                 categoryTag
@@ -140,17 +139,11 @@ struct ArtworkCard: View {
                     }
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 8)
             .padding(.top, 10)
-            .padding(.bottom, 14)
+            .padding(.bottom, 4)
             .frame(maxWidth: .infinity)
-            .background(Color.picardoPostFrame)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-        )
     }
 
     // MARK: .featured — Home hero
@@ -158,8 +151,7 @@ struct ArtworkCard: View {
     private var featuredBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             artworkLink {
-                polaroidImage(height: 340, inner: 18, outer: 16)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                listingImage(radius: 22)
             }
 
             HStack(alignment: .top, spacing: 12) {
@@ -194,7 +186,7 @@ struct ArtworkCard: View {
                         .foregroundStyle(.primary)
 
                     HStack(spacing: 10) {
-                        if allowsMessage {
+                        if showsMessage {
                             Button {
                                 showMessage = true
                             } label: {
@@ -238,17 +230,9 @@ struct ArtworkCard: View {
     // MARK: .pinterest — masonry pin
 
     private var pinterestBody: some View {
-        let ratio = PinterestPinMetrics.aspectRatio(for: artwork)
-        return VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
             ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(white: 0.96))
-                    .overlay {
-                        ArtworkImage(artwork: artwork, contentMode: .fit)
-                            .padding(8)
-                    }
-                    .aspectRatio(ratio, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                listingImage(radius: 16)
 
                 if artwork.isSold {
                     soldBadge
@@ -292,9 +276,10 @@ struct ArtworkCard: View {
     private var compactBody: some View {
         VStack(alignment: .leading, spacing: 0) {
             ZStack(alignment: .topTrailing) {
-                ArtworkImage(artwork: artwork, contentMode: .fill)
-                    .frame(width: compactWidth, height: compactWidth * 1.1)
-                    .clipped()
+                PolaroidFrame(inset: 8, bottomLip: 22, cornerRadius: 4) {
+                    ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: 900)
+                }
+                .frame(width: compactWidth)
 
                 if artwork.isSold {
                     Text("SOLD")
@@ -306,10 +291,6 @@ struct ArtworkCard: View {
                         .padding(8)
                 }
             }
-            .clipShape(UnevenRoundedRectangle(
-                topLeadingRadius: 12, bottomLeadingRadius: 0,
-                bottomTrailingRadius: 0, topTrailingRadius: 12
-            ))
 
             VStack(alignment: .center, spacing: 4) {
                 Text(artwork.title)
@@ -381,7 +362,7 @@ struct ArtworkCard: View {
                     .foregroundStyle(.primary)
 
                 HStack(spacing: 8) {
-                    if allowsMessage {
+                    if showsMessage {
                         Button {
                             showMessage = true
                         } label: {
@@ -423,13 +404,7 @@ struct ArtworkCard: View {
     private var collectionWorkBody: some View {
         VStack(alignment: .leading, spacing: 10) {
             artworkLink {
-                ZStack {
-                    Color.picardoSurface
-                    ArtworkImage(artwork: artwork, contentMode: .fit)
-                        .padding(10)
-                }
-                .frame(height: 180)
-                .picardoCard(radius: 18)
+                listingImage(radius: 18)
             }
 
             artworkLink {
@@ -447,6 +422,36 @@ struct ArtworkCard: View {
                 kerning: 0.8
             )
         }
+    }
+}
+
+/// Instant photo: the whole piece fits inside, white lip below.
+struct PolaroidFrame<Photo: View>: View {
+    var inset: CGFloat = 10
+    var bottomLip: CGFloat = 28
+    var cornerRadius: CGFloat = 6
+    var wellAspect: CGFloat = 1
+    @ViewBuilder var photo: () -> Photo
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Color.picardoPolaroidMat
+                .aspectRatio(wellAspect, contentMode: .fit)
+                .overlay {
+                    photo()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .padding(inset)
+                }
+            Color.picardoPolaroidMat
+                .frame(height: bottomLip)
+        }
+        .background(Color.picardoPolaroidMat)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.10), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
     }
 }
 

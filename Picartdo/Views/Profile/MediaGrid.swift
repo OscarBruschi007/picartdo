@@ -50,38 +50,19 @@ struct MediaGrid: View {
     }
 
     private func tile(_ item: MediaGridItem) -> some View {
-        VStack(spacing: 0) {
-            Color.picardoPolaroidMat
-                .aspectRatio(1, contentMode: .fit)
-                .overlay {
-                    ArtworkImage(imageName: item.imageName, contentMode: .fit, maxDimension: 700)
-                        .padding(5)
-                        .background(Color.picardoPostFrame)
-                }
-                .overlay(alignment: .topLeading) {
-                    if item.isVideo {
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(5)
-                            .background(.black.opacity(0.5), in: Circle())
-                            .padding(8)
-                    }
-                }
-                .clipped()
-
-            Color.picardoPolaroidMat
-                .frame(height: 22)
+        PolaroidFrame(inset: 6, bottomLip: 18, cornerRadius: 4) {
+            ArtworkImage(imageName: item.imageName, contentMode: .fit, maxDimension: 700)
         }
-        .padding(.horizontal, 6)
-        .padding(.top, 6)
-        .padding(.bottom, 2)
-        .background(Color.picardoPolaroidMat)
-        .overlay(
-            Rectangle()
-                .strokeBorder(Color.black.opacity(0.08), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.14), radius: 5, y: 3)
+        .overlay(alignment: .topLeading) {
+            if item.isVideo {
+                Image(systemName: "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .padding(5)
+                    .background(.black.opacity(0.5), in: Circle())
+                    .padding(10)
+            }
+        }
     }
 
     private func accessibility(for item: MediaGridItem) -> String {
@@ -207,8 +188,9 @@ struct ProfileListingFeedView: View {
                     Button("Close") { dismiss() }
                 }
             }
-            .sheet(item: $buyArtwork) { artwork in
+            .fullScreenCover(item: $buyArtwork) { artwork in
                 BuyConfirmationSheet(artwork: artwork)
+                    .presentationBackground(Color.picardoBackground)
             }
             .navigationDestination(item: $openedArtwork) { artwork in
                 ArtworkDetailView(artwork: artwork)

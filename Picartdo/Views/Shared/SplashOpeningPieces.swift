@@ -20,18 +20,24 @@ extension EnvironmentValues {
     }
 }
 
-/// The PICARTDO wordmark, as set in the Home header.
+/// The Picartdo wordmark, as set in the Home header and the opening transition.
 struct PicardoBrandWordmark: View {
     var size: CGFloat = 24
     var tracking: CGFloat = 2.5
 
+    private static let picColor = Color.picardoNeonRed
+    private static let artColor = Color(red: 0.949, green: 0.702, blue: 0.239)
+    private static let doColor = Color(red: 0.231, green: 0.447, blue: 0.718)
+
     var body: some View {
-        Text("PICARTDO")
+        (Text("Pic").foregroundStyle(Self.picColor)
+         + Text("art").foregroundStyle(Self.artColor)
+         + Text("do").foregroundStyle(Self.doColor))
             .font(.system(size: size, weight: .black, design: .serif))
             .kerning(tracking)
-            .foregroundStyle(.primary)
             .lineLimit(1)
             .fixedSize()
+            .accessibilityLabel("Picartdo")
     }
 }
 

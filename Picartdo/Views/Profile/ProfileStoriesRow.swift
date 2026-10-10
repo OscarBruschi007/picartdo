@@ -83,9 +83,8 @@ struct StoryViewer: View {
             ZStack(alignment: .top) {
                 Color.black.ignoresSafeArea()
 
-                ArtworkImage(imageName: story.frames[safe: index] ?? story.coverImage, contentMode: .fill, maxDimension: 1600)
+                ArtworkImage(imageName: story.frames[safe: index] ?? story.coverImage, contentMode: .fit, maxDimension: 1600)
                     .frame(width: geo.size.width, height: geo.size.height)
-                    .clipped()
                     .ignoresSafeArea()
 
                 LinearGradient(colors: [.black.opacity(0.45), .clear, .black.opacity(0.35)], startPoint: .top, endPoint: .bottom)
@@ -157,11 +156,12 @@ struct StoryViewer: View {
             if progress >= 1 { advance() }
         }
         .statusBarHidden(true)
-        .sheet(isPresented: $showMessage) {
+        .fullScreenCover(isPresented: $showMessage) {
             if let artist {
                 NavigationStack {
                     ArtistChatView(artist: artist)
                 }
+                .presentationBackground(Color.picardoBackground)
             }
         }
     }

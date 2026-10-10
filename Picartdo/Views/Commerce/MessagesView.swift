@@ -238,10 +238,11 @@ struct DirectMessagesView: View {
     @State private var openedID: UUID?
 
     private enum InboxLane: String, CaseIterable {
-        case messages, requests
+        case messages, marketplace, requests
         var title: String {
             switch self {
             case .messages: return "Messages"
+            case .marketplace: return "Marketplace"
             case .requests: return "Requests"
             }
         }
@@ -249,14 +250,11 @@ struct DirectMessagesView: View {
 
     private var theme: DMTheme { DMTheme.resolve(colorScheme) }
 
-    private var panelShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 36, style: .continuous)
-    }
-
     private var filtered: [DMConversation] {
         conversations.filter { convo in
             switch inboxLane {
-            case .messages: if convo.category == .request { return false }
+            case .messages: if convo.category == .request || convo.category == .customer { return false }
+            case .marketplace: if convo.category != .customer { return false }
             case .requests: if convo.category != .request { return false }
             }
             if searchText.isEmpty { return true }
@@ -270,13 +268,20 @@ struct DirectMessagesView: View {
         conversations.filter { $0.category == .request }.count
     }
 
+    private var marketplaceCount: Int {
+        conversations.filter { $0.category == .customer && $0.unreadCount > 0 }.count
+    }
+
     private var listAnimation: Animation {
         reduceMotion ? .easeInOut(duration: 0.2) : PicardoMotion.quick
     }
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.35)
+            Rectangle()
+                .fill(.clear)
+                .glassEffect(.regular, in: Rectangle())
+                .overlay(Color.black.opacity(0.16))
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
 
@@ -292,18 +297,6 @@ struct DirectMessagesView: View {
                     }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background {
-                panelShape
-                    .fill(.clear)
-                    .glassEffect(.regular, in: panelShape)
-            }
-            .clipShape(panelShape)
-            .overlay {
-                panelShape.strokeBorder(.white.opacity(0.28), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-            .padding(10)
-            .contentShape(panelShape)
         }
         .confirmationDialog(
             "Delete conversation?",
@@ -424,9 +417,19 @@ struct DirectMessagesView: View {
                     VStack(spacing: 8) {
                         HStack(spacing: 6) {
                             Text(lane.title)
-                                .font(.system(size: 16, weight: inboxLane == lane ? .semibold : .regular))
+                                .font(.system(size: 15, weight: inboxLane == lane ? .semibold : .regular))
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.85)
                             if lane == .requests, requestCount > 0 {
                                 Text("\(requestCount)")
+                                    .font(.system(size: 12, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.picardoNeonRed, in: Capsule())
+                            }
+                            if lane == .marketplace, marketplaceCount > 0 {
+                                Text("\(marketplaceCount)")
                                     .font(.system(size: 12, weight: .bold))
                                     .foregroundStyle(.white)
                                     .padding(.horizontal, 6)
@@ -544,7 +547,11 @@ struct DirectMessagesView: View {
     }
 
     private var emptyLine: String {
-        inboxLane == .requests ? "No message requests" : "No messages yet"
+        switch inboxLane {
+        case .messages: return "No messages yet"
+        case .marketplace: return "No marketplace messages yet"
+        case .requests: return "No message requests"
+        }
     }
 
     private func requestActions(_ convo: DMConversation) -> some View {
@@ -736,6 +743,7 @@ struct ChatView: View {
             thread
             inputBar
         }
+        .background(Color.picardoBackground.ignoresSafeArea())
         .navigationBarBackButtonHidden(true)
         .toolbar(.hidden, for: .navigationBar)
         .onDisappear {
@@ -756,46 +764,44 @@ struct ChatView: View {
     }
 
     private var chatNav: some View {
-        HStack(alignment: .center, spacing: 0) {
+        HStack(spacing: 10) {
             DMBackChevron()
-                .frame(width: 44, alignment: .leading)
 
-            Spacer(minLength: 0)
+            DMPhotoAvatar(conversation: conversation, size: 36)
 
-            VStack(spacing: 4) {
-                DMPhotoAvatar(conversation: conversation, size: 40)
-                HStack(spacing: 3) {
-                    Text(conversation.fullName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                }
-                HStack(spacing: 3) {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 9, weight: .semibold))
-                    Text("Encrypted")
-                        .font(.system(size: 11))
-                }
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(conversation.fullName)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(conversation.isActive ? "Active now" : "Picartdo")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
             }
-            .frame(maxWidth: 220)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
+
+            Button { Haptics.tap() } label: {
+                Image(systemName: "phone")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 36, height: 36)
+                    .background(Color.primary.opacity(0.08), in: Circle())
+            }
+            .accessibilityLabel("Voice call")
 
             Button { Haptics.tap() } label: {
                 Image(systemName: "video")
-                    .font(.system(size: 18, weight: .regular))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.primary)
-                    .frame(width: 44, height: 36)
+                    .frame(width: 36, height: 36)
+                    .background(Color.primary.opacity(0.08), in: Circle())
             }
-            .accessibilityLabel("Video")
+            .accessibilityLabel("Video call")
         }
-        .padding(.horizontal, 8)
+        .padding(.horizontal, 12)
         .padding(.top, 6)
-        .padding(.bottom, 10)
+        .padding(.bottom, 8)
     }
 
     private var thread: some View {
@@ -1026,37 +1032,52 @@ struct ChatView: View {
                         .lineLimit(1...5)
                         .focused($inputFocused)
                     if canSend {
-                        Button("Send", action: sendMessage)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(Color(red: 0.04, green: 0.52, blue: 1.0))
-                    } else {
-                        Button { Haptics.tap() } label: {
-                            Image(systemName: "mic")
-                                .font(.system(size: 18))
-                                .foregroundStyle(theme.text)
+                        Button(action: sendMessage) {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundStyle(Color.picardoNeonRed)
                         }
-                        Button { Haptics.tap() } label: {
-                            Image(systemName: "photo")
-                                .font(.system(size: 18))
-                                .foregroundStyle(theme.text)
-                        }
-                        Button { Haptics.tap() } label: {
-                            Image(systemName: "face.smiling")
-                                .font(.system(size: 18))
-                                .foregroundStyle(theme.text)
-                        }
+                        .accessibilityLabel("Send")
                     }
                 }
                 .padding(.leading, 14)
-                .padding(.trailing, 10)
-                .padding(.vertical, 8)
+                .padding(.trailing, 6)
+                .padding(.vertical, 6)
                 .background(theme.searchFill, in: Capsule())
+
+                if !canSend {
+                    Button { Haptics.tap() } label: {
+                        Image(systemName: "mic.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityLabel("Voice message")
+                    Button { Haptics.tap() } label: {
+                        Image(systemName: "photo.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityLabel("Photo library")
+                    Button { Haptics.tap() } label: {
+                        Image(systemName: "face.smiling")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityLabel("Stickers")
+                    Button { Haptics.tap() } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 22, weight: .semibold))
+                            .foregroundStyle(.primary)
+                    }
+                    .accessibilityLabel("More")
+                }
             }
             .padding(.horizontal, 10)
-            .padding(.vertical, 8)
+            .padding(.top, 6)
+            .padding(.bottom, 8)
             .animation(reduceMotion ? .easeInOut(duration: 0.15) : PicardoMotion.quick, value: canSend)
         }
-        .background(.clear)
+        .background(Color.picardoBackground)
     }
 
     private func sendMessage() {

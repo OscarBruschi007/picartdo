@@ -46,6 +46,7 @@ struct PicassoButton: View {
             PicassoHubView(viewModel: viewModel) {
                 isOpen = false
             }
+            .presentationBackground(.clear)
         }
         .onAppear {
             guard !reduceMotion else {
@@ -97,7 +98,7 @@ struct PicassoHubView: View {
     var onClose: () -> Void
 
     @State private var mode: PicassoMode = .chat
-    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         VStack(spacing: 0) {
@@ -106,7 +107,7 @@ struct PicassoHubView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
 
-            Divider().opacity(0.4)
+            Divider().opacity(0.25)
 
             switch mode {
             case .chat:
@@ -128,7 +129,18 @@ struct PicassoHubView: View {
                 )
             }
         }
-        .background(colorScheme == .dark ? Color(white: 0.10) : Color.white)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+            Rectangle()
+                .fill(.clear)
+                .glassEffect(.regular, in: Rectangle())
+                .overlay(Color.picardoBackground.opacity(0.22))
+                .ignoresSafeArea()
+        }
+        .onAppear { viewModel.startNetworkMonitor() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { Task { await viewModel.refreshKeyState() } }
+        }
     }
 
     private var header: some View {
@@ -195,6 +207,7 @@ private struct PicassoChatTab: View {
     @State private var pendingImage: UIImage?
     @State private var photoItem: PhotosPickerItem?
     @State private var developerKey = ""
+    @State private var showAuth = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -202,10 +215,8 @@ private struct PicassoChatTab: View {
             if viewModel.showSuggestions && viewModel.messages.count <= 1 {
                 suggestionChips
             }
-            #if DEBUG
-            if viewModel.needsDeveloperKey { developerKeyBanner }
-            #endif
-            Divider().opacity(0.4)
+            if viewModel.showsConnectionHelp { connectionBanner }
+            Divider().opacity(0.25)
             inputBar
         }
         .onChange(of: photoItem) { _, item in
@@ -226,6 +237,11 @@ private struct PicassoChatTab: View {
                         }
                     }
             }
+        }
+        .sheet(isPresented: $showAuth, onDismiss: {
+            Task { await viewModel.refreshKeyState() }
+        }) {
+            AuthRequiredSheet()
         }
     }
 
@@ -298,38 +314,85 @@ private struct PicassoChatTab: View {
         }
     }
 
-    #if DEBUG
-    /// Debug builds only: lets a developer paste their own key so Picasso works without the backend.
-    /// The key is stored in the Keychain and never ships in the app.
-    private var developerKeyBanner: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Offline mode", systemImage: "wifi.slash")
-                .font(.caption.weight(.semibold))
-            Text("Picasso is answering from the catalog on this device. For the full AI (photos, real conversation), sign in, or paste an Anthropic API key here. It's saved in this device's Keychain, debug builds only.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                SecureField("sk-ant-…", text: $developerKey)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .font(.callout)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.06)))
-                Button("Save") {
-                    viewModel.saveDeveloperKey(developerKey)
-                    developerKey = ""
+    private var connectionBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !viewModel.isNetworkAvailable {
+                Label("No connection", systemImage: "wifi.slash")
+                    .font(.caption.weight(.semibold))
+                Text("Connect to Wi‑Fi so Picasso can use the full AI for photos and real conversation.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                } label: {
+                    Text("Connect to Wi‑Fi")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.picardoAccent, in: Capsule())
                 }
-                .font(.callout.weight(.semibold))
-                .disabled(developerKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                .buttonStyle(.plain)
+            } else {
+                Label("Catalog only", systemImage: "sparkles")
+                    .font(.caption.weight(.semibold))
+                Text("Sign in for the full AI, or paste an Anthropic API key. Saved in this phone’s Keychain.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button {
+                    showAuth = true
+                } label: {
+                    Text("Sign in")
+                        .font(.callout.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.picardoAccent, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                #if DEBUG
+                HStack(spacing: 8) {
+                    SecureField("sk-ant-…", text: $developerKey)
+                        .textContentType(.password)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.callout)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .fill(Color.primary.opacity(0.08))
+                        )
+                    Button("Save") {
+                        viewModel.saveDeveloperKey(developerKey)
+                        developerKey = ""
+                    }
+                    .font(.callout.weight(.semibold))
+                    .disabled(developerKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                if let error = viewModel.keyError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundStyle(Color.picardoNeonRed)
+                }
+                #endif
             }
         }
         .padding(12)
-        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.picardoAccent.opacity(0.08)))
+        .background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.clear)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(.white.opacity(0.28), lineWidth: 1)
+        )
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
     }
-    #endif
 
     private var inputBar: some View {
         VStack(alignment: .leading, spacing: 8) {

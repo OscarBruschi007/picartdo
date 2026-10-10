@@ -50,6 +50,15 @@ extension ArtistPost {
 
     /// One post per unique work — never a close-up of a piece already listed.
     static let samples: [ArtistPost] = [
+        ArtistPost(
+            artist: Artist.oscar,
+            imageName: "oscar_studio",
+            caption: "At the canvas. Colour going down by the window.",
+            likes: 842,
+            comments: 36,
+            timeAgo: "1h",
+            isVideo: false
+        ),
         post("circle_worlds", caption: "Twenty living worlds on one canvas.", likes: 1567, comments: 74, timeAgo: "2h"),
         post("cross_garden", caption: "Green field of crosses around a dotted inner world.", likes: 742, comments: 31, timeAgo: "4h"),
         post("orange_scallops", caption: "Orange scallops, black bodies, a watching moon in the corner.", likes: 1204, comments: 57, timeAgo: "6h"),
@@ -110,10 +119,30 @@ struct ArtistOfTheWeekFeature {
     var portraitImage: String
     var blurb: String
 
-    static let current = ArtistOfTheWeekFeature(
-        artist: Artist.named("Hugo Kessler"),
-        portraitImage: "artist_of_the_week",
-        blurb: "Four figures on a red ground. This week's studio."
+    static let roster: [ArtistOfTheWeekFeature] = [
+        ArtistOfTheWeekFeature(
+            artist: Artist.oscar,
+            portraitImage: "oscar_studio",
+            blurb: "At the canvas. Colour by the window."
+        ),
+        ArtistOfTheWeekFeature(
+            artist: Artist.named("Hugo Kessler"),
+            portraitImage: "artist_of_the_week",
+            blurb: "Four figures on a red ground. This week's studio."
+        ),
+        ArtistOfTheWeekFeature(
+            artist: Artist.named("Nix Calder"),
+            portraitImage: "third_eye_seat",
+            blurb: "Neon diagrams of the body. This week's studio."
+        ),
+    ].compactMap { feature in
+        feature.artist == nil ? nil : feature
+    }
+
+    static let current = roster.first ?? ArtistOfTheWeekFeature(
+        artist: Artist.oscar,
+        portraitImage: "oscar_studio",
+        blurb: "At the canvas. Colour by the window."
     )
 }
 
@@ -134,7 +163,7 @@ struct HomeArticle: Identifiable, Hashable {
         title: String,
         kicker: String = "Essay",
         imageName: String = "",
-        author: String = "PICARDO",
+        author: String = "Picartdo",
         readTime: String = "4 min",
         body: String = ""
     ) {
@@ -361,8 +390,10 @@ struct HomeView: View {
     @Environment(TastePreferenceStore.self) private var taste
     @Environment(HomeFeedStore.self) private var homeFeed
     @Environment(\.picardoSplashBridge) private var splashBridge
+    @Environment(\.homeRootTick) private var homeRootTick
     @State private var showBuySheet = false
     @State private var buyArtwork: Artwork?
+    @State private var path = NavigationPath()
 
     private var featured: Artwork { homeFeed.featured }
     private var storyArtists: [Artist] { homeFeed.storyArtists }
@@ -388,7 +419,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 PicartdoBackground()
                     .ignoresSafeArea()
@@ -396,7 +427,7 @@ struct HomeView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
 
-                        // ── PICARTDO wordmark — tap it, the era steps forward ──
+                        // ── Picartdo wordmark — tap it, the era steps forward ──
                         PicardoBrandWordmark(size: 24, tracking: 2.5)
                             // During launch the splash wordmark flies onto this spot, then hands over.
                             .opacity(splashBridge?.hidesHomeWordmark == true ? 0 : 1)
@@ -442,7 +473,6 @@ struct HomeView: View {
             }
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
-                    .picardoPushedScreen()
             }
             .navigationDestination(for: HomeArticle.self) { article in
                 HomeArticleDetailView(article: article)
@@ -460,14 +490,20 @@ struct HomeView: View {
                 CityEventDetailView(event: event)
                     .picardoPushedScreen()
             }
-            .sheet(isPresented: $showBuySheet) {
+            .fullScreenCover(isPresented: $showBuySheet) {
                 BuyConfirmationSheet(artwork: featured)
+                    .presentationBackground(Color.picardoBackground)
             }
-            .sheet(item: $buyArtwork) { artwork in
+            .fullScreenCover(item: $buyArtwork) { artwork in
                 BuyConfirmationSheet(artwork: artwork)
+                    .presentationBackground(Color.picardoBackground)
             }
             .overlay(alignment: .topTrailing) {
                 PicassoButton()
+            }
+            .onChange(of: homeRootTick) { _, _ in
+                guard !path.isEmpty else { return }
+                path = NavigationPath()
             }
         }
     }
@@ -486,10 +522,22 @@ struct HomeView: View {
             .padding(.horizontal, 16)
 
         case .artistOfTheWeek:
-            HomeSection(title: "Artist of the Week", subtitle: "This week's studio") {
-                ArtistOfTheWeekCard(feature: .current)
-                    .padding(.horizontal, 16)
+            VStack(spacing: 8) {
+                Text("Artist of the Week")
+                    .font(.system(size: 23, weight: .black, design: .serif))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+
+                Text(homeFeed.artistOfTheWeek.artist?.name ?? "Coming soon")
+                    .font(.system(size: 16, weight: .medium, design: .serif))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+
+                ArtistOfTheWeekCard(feature: homeFeed.artistOfTheWeek)
             }
+            .padding(.horizontal, 16)
 
         case .articles:
             HomeSection(
@@ -660,40 +708,26 @@ struct ArtistOfTheWeekCard: View {
     }
 
     private var card: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack {
-                Color.picardoSurface
-                if hasPortrait {
-                    ArtworkImage(imageName: feature.portraitImage, contentMode: .fit, maxDimension: 1600)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    VStack(spacing: 12) {
-                        Image(systemName: "person.crop.rectangle")
-                            .font(.system(size: 36, weight: .light))
-                            .foregroundStyle(Color.picardoGold)
-                        Text("Photo coming")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.secondary)
-                    }
+        ZStack {
+            Color.picardoSurface
+            if hasPortrait {
+                ArtworkImage(imageName: feature.portraitImage, contentMode: .fit, maxDimension: 1600)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 280)
+            } else {
+                VStack(spacing: 12) {
+                    Image(systemName: "person.crop.rectangle")
+                        .font(.system(size: 36, weight: .light))
+                        .foregroundStyle(Color.picardoGold)
+                    Text("Photo coming")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
                 }
+                .frame(maxWidth: .infinity)
+                .frame(height: 280)
             }
-            .frame(maxWidth: .infinity)
-            .clipped()
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(feature.artist?.name ?? "Coming soon")
-                    .font(.system(size: 22, weight: .black, design: .serif))
-                    .foregroundStyle(.primary)
-                Text(feature.artist?.tagline ?? feature.blurb)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .padding(16)
         }
-        .background(Color.picardoCard)
+        .frame(maxWidth: .infinity)
+        .clipped()
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
@@ -743,7 +777,7 @@ struct HomeArticlePlaceholderCard: View {
             article: HomeArticle(
                 title: title,
                 kicker: kicker,
-                author: "PICARDO",
+                author: "Picartdo",
                 readTime: "Soon"
             )
         )
@@ -1018,7 +1052,10 @@ struct TrendingRow: View {
             onBuy: { showBuy = true },
             rank: rank
         )
-        .sheet(isPresented: $showBuy) { BuyConfirmationSheet(artwork: artwork) }
+        .fullScreenCover(isPresented: $showBuy) {
+            BuyConfirmationSheet(artwork: artwork)
+                .presentationBackground(Color.picardoBackground)
+        }
     }
 }
 

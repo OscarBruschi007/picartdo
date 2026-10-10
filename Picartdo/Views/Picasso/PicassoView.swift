@@ -115,7 +115,6 @@ struct PicassoView: View {
             .navigationDestination(for: Artwork.self) { ArtworkDetailView(artwork: $0) }
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
-                    .picardoPushedScreen()
             }
         }
     }
@@ -231,7 +230,7 @@ struct PicassoAvatar: View {
             .fill(Color.picardoAccent)
             .frame(width: size, height: size)
             .overlay(
-                // Serif "P" monogram — matches the PICARTDO wordmark.
+                // Serif "P" monogram — matches the Picartdo wordmark.
                 Text("P")
                     .font(.system(size: size * 0.58, weight: .bold, design: .serif))
                     .foregroundStyle(.white)

@@ -8,5 +8,7 @@ Every profile (the user's own Profile tab and every other artist's page) is buil
 - Any new profile feature (section, tab, sheet, button behavior) goes in `ProfilePage.swift`,
   so all profiles get it. Never add a feature to only `ProfileView` (own profile) or
   `ArtistStoreView` (other artists).
-- The wrappers only supply identity and the header buttons: Edit Profile/Message on your own
-  profile, Muse/Message on other artists (Muse → Release Muse asks "Release this muse?").
+- Customization (avatar shape, name color, edit brush) is only on your own profile.
+  Other artists never get Muse or the mail icon. They get a Contact button that opens chat.
+- The wrappers only supply identity and the header actions: Edit/Messages on your own
+  profile, Contact on other artists.

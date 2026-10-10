@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Opening — a quiet pigment wash on textured paper, "PICARTDO" written in at the centre,
+/// Opening — a quiet pigment wash on textured paper, "Picartdo" (Pic / art / do) written in at the centre,
 /// then the wordmark glides up into the Home header as the app fades in around it.
 struct SplashScreenView: View {
     @Environment(SessionStore.self) private var session
@@ -186,37 +186,19 @@ struct SplashScreenView: View {
     }
 
     private func playFull() async throws {
-        // The launch screen already showed the wordmark; carry on from it without redrawing.
-        try await Task.sleep(for: .milliseconds(40))
-        withAnimation(.easeInOut(duration: 0.7)) { canvasSettled = 1 }
-        withAnimation(.easeOut(duration: 0.9)) { washOpacity = 1 }
-        withAnimation(.easeInOut(duration: 1.8)) { washDrift = 1 }
-
-        try await Task.sleep(for: .milliseconds(120))
-        withAnimation(.timingCurve(0.65, 0, 0.35, 1, duration: 0.5)) { ruleWidth = 36 }
-
-        try await Task.sleep(for: .milliseconds(150))
         withAnimation(.easeOut(duration: 0.4)) {
-            taglineOpacity = 1
-            taglineRise = 0
+            canvasSettled = 1
+            washOpacity = 1
         }
-
-        // Mount the app underneath during the still moment so first layout can't stutter the motion.
-        try await Task.sleep(for: .milliseconds(150))
+        withAnimation(.easeInOut(duration: 0.8)) { washDrift = 0.5 }
         mainAppReady = true
-        try await Task.sleep(for: .milliseconds(450))
+        try await Task.sleep(for: .milliseconds(280))
         try Task.checkCancellation()
         await performHandoff()
     }
 
     private func playShort() async throws {
-        withAnimation(.easeInOut(duration: 0.4)) { canvasSettled = 1 }
-        withAnimation(.easeOut(duration: 0.4)) { washOpacity = 1 }
-        try await Task.sleep(for: .milliseconds(120))
-        mainAppReady = true
-        try await Task.sleep(for: .milliseconds(280))
-        try Task.checkCancellation()
-        await performHandoff()
+        try await playFull()
     }
 
     private func playReduceMotion() async throws {

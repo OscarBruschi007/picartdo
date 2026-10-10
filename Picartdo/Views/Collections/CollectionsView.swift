@@ -35,7 +35,6 @@ struct CollectionsView: View {
             }
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
-                    .picardoPushedScreen()
             }
         }
     }

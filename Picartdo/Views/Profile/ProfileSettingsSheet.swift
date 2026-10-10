@@ -30,7 +30,7 @@ struct ProfileSettingsSheet: View {
                             .link("bell", "Notifications", "Push, email, and in-app", .notifications),
                             .link("eye", "Privacy", "Who can see you and how", .privacy),
                             .link("nosign", "Blocked accounts", "People you have blocked", .blocked),
-                            .link("envelope", "Messages", "Who can message you and requests", .messages),
+                            .link("envelope", "Messages", "Marketplace and requests", .messages),
                             .link("bubble.left.and.bubble.right", "Interactions", "Comments and tags", .interactions),
                         ])
 
@@ -50,7 +50,7 @@ struct ProfileSettingsSheet: View {
                         settingsGroup("More info and support", rows: [
                             .link("questionmark.circle", "Help", "FAQs and support", .help),
                             .link("exclamationmark.bubble", "Report a problem", "Tell us what’s broken", .report),
-                            .link("info.circle", "About", "Version, terms, and PICARDO", .about),
+                            .link("info.circle", "About", "Version, terms, and Picartdo", .about),
                         ])
 
                         signOutButton
@@ -58,7 +58,7 @@ struct ProfileSettingsSheet: View {
 
                         deactivateButton
 
-                        Text("PICARDO")
+                        Text("Picartdo")
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
@@ -85,7 +85,7 @@ struct ProfileSettingsSheet: View {
             .navigationDestination(for: SettingsDestination.self) { destination in
                 SettingsDestinationView(destination: destination, identity: $identity)
             }
-            .confirmationDialog("Sign out of PICARDO?", isPresented: $confirmSignOut, titleVisibility: .visible) {
+            .confirmationDialog("Sign out of Picartdo?", isPresented: $confirmSignOut, titleVisibility: .visible) {
                 Button("Sign Out", role: .destructive) {
                     Task {
                         await session.signOut()
@@ -109,7 +109,7 @@ struct ProfileSettingsSheet: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text("You’ll be signed out on this phone. Your public profile stays until you ask PICARDO to delete it.")
+                Text("You’ll be signed out on this phone. Your public profile stays until you ask Picartdo to delete it.")
             }
         }
         .background(.clear)
