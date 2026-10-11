@@ -5,7 +5,9 @@ import SwiftUI
 private enum ExploreSearchLane: String, CaseIterable, Identifiable {
     case top = "Top"
     case accounts = "Accounts"
-    case tags = "Tags"
+    case art = "Art"
+    case services = "Services"
+    case categories = "Categories"
     var id: String { rawValue }
 }
 
@@ -25,33 +27,87 @@ struct ExploreView: View {
 
     private var showSearch: Bool { searchFocused || !trimmedQuery.isEmpty }
 
+    private func hits(_ q: String, _ parts: String...) -> Bool {
+        parts.joined(separator: " ").lowercased().contains(q)
+    }
+
     private var matchedAccounts: [Artist] {
         guard !trimmedQuery.isEmpty else { return Array(catalog.prefix(16)) }
         let q = trimmedQuery.lowercased().replacingOccurrences(of: "@", with: "")
         return catalog.filter {
-            $0.name.lowercased().contains(q)
-            || $0.username.contains(q)
-            || $0.storeName.lowercased().contains(q)
-            || $0.tagline.lowercased().contains(q)
+            hits(q, $0.name, $0.username, $0.storeName, $0.tagline, $0.bio, $0.location)
+                || $0.specialties.contains { $0.lowercased().contains(q) }
         }
     }
 
-    private var matchedTags: [String] {
-        let tags = Array(Set(
-            catalog.flatMap(\.specialties) + ArtCategory.allCases.map(\.rawValue)
-        )).sorted()
-        guard !trimmedQuery.isEmpty else { return tags }
+    private var matchedArt: [Artwork] {
+        let pool = Artwork.samples
+        guard !trimmedQuery.isEmpty else { return Array(discoverArt.prefix(18)) }
         let q = trimmedQuery.lowercased()
-        return tags.filter { $0.lowercased().contains(q) }
+        return pool.filter {
+            hits(q, $0.title, $0.artistName, $0.category.rawValue, $0.medium, $0.description, $0.dimensions)
+        }
     }
 
-    private var matchedArt: [Artwork] {
-        guard !trimmedQuery.isEmpty else { return discoverArt }
+    private var matchedServices: [ServiceCategory] {
         let q = trimmedQuery.lowercased()
-        return discoverArt.filter {
-            $0.title.lowercased().contains(q)
-            || $0.artistName.lowercased().contains(q)
-            || $0.category.rawValue.lowercased().contains(q)
+        let pool = ServiceCategory.allCases
+        guard !q.isEmpty else { return Array(pool.prefix(8)) }
+        return pool.filter {
+            hits(q, $0.rawValue, $0.introLine)
+                || $0.matchKeys.contains { key in key.contains(q) || q.contains(key) }
+        }
+    }
+
+    private var matchedServiceListings: [Service] {
+        let q = trimmedQuery.lowercased()
+        guard !q.isEmpty else { return [] }
+        return Service.samples.filter {
+            hits(q, $0.title, $0.providerName, $0.description, $0.category.rawValue, $0.priceDisplay)
+                || $0.tags.contains { $0.lowercased().contains(q) }
+        }
+    }
+
+    private var matchedServiceOffers: [ArtServiceItem] {
+        let q = trimmedQuery.lowercased()
+        guard !q.isEmpty else { return [] }
+        return ArtServiceItem.samples.filter {
+            hits(q, $0.title, $0.artistName)
+        }
+    }
+
+    private var matchedCategories: [ExploreBrowseCategory] {
+        let q = trimmedQuery.lowercased()
+        let pool = ExploreBrowseCategory.allCases
+        guard !q.isEmpty else { return pool }
+        return pool.filter {
+            hits(q, $0.rawValue, $0.marketplaceHint)
+                || $0.linkedArtCategory?.rawValue.lowercased().contains(q) == true
+        }
+    }
+
+    private var matchedArtCategories: [ArtCategory] {
+        let q = trimmedQuery.lowercased()
+        guard !q.isEmpty else { return [] }
+        let covered = Set(ExploreBrowseCategory.allCases.compactMap(\.linkedArtCategory))
+        return ArtCategory.allCases.filter {
+            !covered.contains($0) && hits(q, $0.rawValue)
+        }
+    }
+
+    private var matchedEvents: [ArtEventItem] {
+        let q = trimmedQuery.lowercased()
+        guard !q.isEmpty else { return [] }
+        return ArtEventItem.samples.filter {
+            hits(q, $0.title, $0.venue, $0.city, $0.type)
+        }
+    }
+
+    private var matchedPlaces: [ArtPlaceItem] {
+        let q = trimmedQuery.lowercased()
+        guard !q.isEmpty else { return [] }
+        return ArtPlaceItem.samples.filter {
+            hits(q, $0.name, $0.type, $0.city)
         }
     }
 
@@ -81,6 +137,23 @@ struct ExploreView: View {
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
             }
+            .navigationDestination(for: ServiceCategory.self) { category in
+                CategoryServicesView(category: category)
+                    .picardoPushedScreen()
+            }
+            .navigationDestination(for: ExploreBrowseCategory.self) { category in
+                ExploreCategoryFeedView(category: category)
+            }
+            .navigationDestination(for: ArtEventItem.self) { event in
+                CityEventDetailView(event: event)
+                    .picardoPushedScreen()
+            }
+            .navigationDestination(for: ArtCategory.self) { category in
+                ExploreArtCategoryFeedView(category: category)
+            }
+            .navigationDestination(for: Service.self) { listing in
+                CategoryServicesView(category: listing.category)
+            }
         }
     }
 
@@ -92,7 +165,7 @@ struct ExploreView: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(.secondary)
-                TextField("Search", text: $query)
+                TextField("Search art, artists, services, categories", text: $query)
                     .font(.system(size: 16))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
@@ -131,22 +204,24 @@ struct ExploreView: View {
     }
 
     private var lanePicker: some View {
-        HStack(spacing: 0) {
-            ForEach(ExploreSearchLane.allCases) { item in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) { lane = item }
-                } label: {
-                    VStack(spacing: 8) {
-                        Text(item.rawValue)
-                            .font(.system(size: 15, weight: lane == item ? .semibold : .regular))
-                            .foregroundStyle(lane == item ? .primary : .secondary)
-                        Rectangle()
-                            .fill(lane == item ? Color.primary : Color.clear)
-                            .frame(height: 1)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 0) {
+                ForEach(ExploreSearchLane.allCases) { item in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) { lane = item }
+                    } label: {
+                        VStack(spacing: 8) {
+                            Text(item.rawValue)
+                                .font(.system(size: 15, weight: lane == item ? .semibold : .regular))
+                                .foregroundStyle(lane == item ? .primary : .secondary)
+                            Rectangle()
+                                .fill(lane == item ? Color.primary : Color.clear)
+                                .frame(height: 1)
+                        }
+                        .padding(.horizontal, 14)
                     }
-                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
             }
         }
         .overlay(alignment: .bottom) {
@@ -196,27 +271,81 @@ struct ExploreView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 0) {
                 if trimmedQuery.isEmpty {
-                    Text("Suggested")
-                        .font(.system(size: 16, weight: .semibold))
-                        .padding(.horizontal, 16)
-                        .padding(.top, 14)
-                        .padding(.bottom, 6)
+                    sectionTitle("Suggested")
                     accountRows(matchedAccounts)
                 } else {
                     switch lane {
                     case .top:
-                        accountRows(Array(matchedAccounts.prefix(8)))
-                        photoHits
+                        topHits
                     case .accounts:
                         accountRows(matchedAccounts)
-                    case .tags:
-                        tagRows
+                    case .art:
+                        if matchedArt.isEmpty { emptyLine("No art found") } else { photoHits }
+                    case .services:
+                        serviceRows(matchedServices)
+                        serviceListingRows
+                        serviceOfferRows
+                    case .categories:
+                        categoryRows(matchedCategories)
+                        artCategoryRows
                     }
                 }
             }
             .padding(.bottom, 48)
         }
         .scrollDismissesKeyboard(.immediately)
+    }
+
+    @ViewBuilder
+    private var topHits: some View {
+        let empty = matchedCategories.isEmpty
+            && matchedArtCategories.isEmpty
+            && matchedServices.isEmpty
+            && matchedServiceListings.isEmpty
+            && matchedServiceOffers.isEmpty
+            && matchedAccounts.isEmpty
+            && matchedArt.isEmpty
+            && matchedEvents.isEmpty
+            && matchedPlaces.isEmpty
+        if empty {
+            emptyLine("No results found")
+        } else {
+            if !matchedCategories.isEmpty || !matchedArtCategories.isEmpty {
+                sectionTitle("Categories")
+                categoryRows(matchedCategories)
+                artCategoryRows
+            }
+            if !matchedServices.isEmpty || !matchedServiceListings.isEmpty || !matchedServiceOffers.isEmpty {
+                sectionTitle("Services")
+                serviceRows(matchedServices)
+                serviceListingRows
+                serviceOfferRows
+            }
+            if !matchedAccounts.isEmpty {
+                sectionTitle("Artists")
+                accountRows(Array(matchedAccounts.prefix(8)))
+            }
+            if !matchedArt.isEmpty {
+                sectionTitle("Art")
+                photoHits
+            }
+            if !matchedEvents.isEmpty {
+                sectionTitle("Events")
+                eventRows
+            }
+            if !matchedPlaces.isEmpty {
+                sectionTitle("Places")
+                placeRows
+            }
+        }
+    }
+
+    private func sectionTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 16, weight: .semibold))
+            .padding(.horizontal, 16)
+            .padding(.top, 14)
+            .padding(.bottom, 6)
     }
 
     private func accountRows(_ artists: [Artist]) -> some View {
@@ -261,36 +390,149 @@ struct ExploreView: View {
         .padding(.top, 8)
     }
 
-    private var tagRows: some View {
+    private func categoryRows(_ categories: [ExploreBrowseCategory]) -> some View {
         Group {
-            if matchedTags.isEmpty {
-                Text("No tags found")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
+            if categories.isEmpty && matchedArtCategories.isEmpty {
+                emptyLine("No categories found")
             } else {
-                ForEach(matchedTags, id: \.self) { tag in
-                    HStack(spacing: 12) {
-                        Image(systemName: "number")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                            .frame(width: 48, height: 48)
-                            .background(Color(.systemGray6), in: Circle())
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(tag)
-                                .font(.system(size: 15, weight: .semibold))
-                            Text("Tag")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
+                ForEach(categories) { category in
+                    NavigationLink(value: category) {
+                        searchKindRow(
+                            icon: category.iconName,
+                            title: category.rawValue,
+                            detail: "Category"
+                        )
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .buttonStyle(.plain)
                 }
             }
         }
+    }
+
+    private func serviceRows(_ services: [ServiceCategory]) -> some View {
+        Group {
+            if services.isEmpty && matchedServiceListings.isEmpty && matchedServiceOffers.isEmpty {
+                emptyLine("No services found")
+            } else {
+                ForEach(services) { service in
+                    NavigationLink(value: service) {
+                        searchKindRow(
+                            icon: service.iconName,
+                            title: service.rawValue,
+                            detail: "Service"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private var serviceListingRows: some View {
+        ForEach(matchedServiceListings) { listing in
+            NavigationLink(value: listing) {
+                searchKindRow(
+                    icon: listing.imageName,
+                    title: listing.title,
+                    detail: "\(listing.providerName) · \(listing.priceDisplay)"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var serviceOfferRows: some View {
+        ForEach(matchedServiceOffers) { offer in
+            NavigationLink(value: serviceCategory(for: offer)) {
+                searchKindRow(
+                    icon: offer.icon,
+                    title: offer.title,
+                    detail: "\(offer.artistName) · From $\(Int(offer.priceFrom))"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func serviceCategory(for offer: ArtServiceItem) -> ServiceCategory {
+        let t = offer.title.lowercased()
+        if t.contains("tattoo") { return .tattoo }
+        if t.contains("mural") { return .mural }
+        if t.contains("digital") { return .digitalArt }
+        if t.contains("restoration") { return .restoration }
+        if t.contains("sculpture") { return .sculpture }
+        if t.contains("live") { return .liveEvent }
+        if t.contains("photo") { return .paintingService }
+        return .paintingService
+    }
+
+    private var artCategoryRows: some View {
+        ForEach(matchedArtCategories) { category in
+            NavigationLink(value: category) {
+                searchKindRow(
+                    icon: category.iconName,
+                    title: category.rawValue,
+                    detail: "Category"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var eventRows: some View {
+        ForEach(matchedEvents) { event in
+            NavigationLink(value: event) {
+                searchKindRow(
+                    icon: "calendar",
+                    title: event.title,
+                    detail: "\(event.type) · \(event.venue)"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var placeRows: some View {
+        ForEach(matchedPlaces) { place in
+            searchKindRow(
+                icon: "mappin",
+                title: place.name,
+                detail: "\(place.type) · \(place.city)"
+            )
+        }
+    }
+
+    private func searchKindRow(icon: String, title: String, detail: String) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.primary)
+                .frame(width: 48, height: 48)
+                .background(Color(.systemGray6), in: Circle())
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    private func emptyLine(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 14))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 40)
     }
 }
 
@@ -354,6 +596,46 @@ private struct InstagramAccountRow: View {
 }
 
 // MARK: - Category feed (marketplace lane)
+
+struct ExploreArtCategoryFeedView: View {
+    let category: ArtCategory
+    @Environment(WishlistStore.self) private var wishlist
+
+    private var artworks: [Artwork] {
+        Artwork.samples.filter { $0.category == category }
+    }
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12),
+    ]
+
+    var body: some View {
+        ZStack {
+            PicartdoBackground()
+                .ignoresSafeArea()
+            ScrollView(showsIndicators: false) {
+                LazyVGrid(columns: columns, spacing: 12) {
+                    ForEach(artworks) { artwork in
+                        NavigationLink(value: artwork) {
+                            GoatGridCard(
+                                artwork: artwork,
+                                isSaved: wishlist.isLiked(artwork)
+                            ) {
+                                wishlist.toggle(artwork)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(18)
+            }
+        }
+        .navigationTitle(category.rawValue)
+        .navigationBarTitleDisplayMode(.inline)
+        .picardoPushedScreen()
+    }
+}
 
 struct ExploreCategoryFeedView: View {
     let category: ExploreBrowseCategory

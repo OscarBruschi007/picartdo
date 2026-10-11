@@ -94,7 +94,7 @@ struct Artwork: Identifiable, Hashable {
     }
 }
 
-enum ArtCategory: String, CaseIterable, Identifiable {
+enum ArtCategory: String, CaseIterable, Identifiable, Hashable {
     case painting    = "Painting"
     case photography = "Photography"
     case sculpture   = "Sculpture"
