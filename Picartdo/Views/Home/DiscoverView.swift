@@ -529,28 +529,36 @@ extension Artist {
 struct DiscoverView: View {
     @State private var path = NavigationPath()
 
-    private let categories = ServiceCategory.allCases
+    private let categories = ServiceCategory.offered
 
-    private let categoryImage: [ServiceCategory: String] = Dictionary(
-        uniqueKeysWithValues: ServiceCategory.allCases.map { ($0, $0.heroImageName) }
-    )
+    private let columns = 3
+    private let gap: CGFloat = 10
+    /// Room left for the floating tab bar, so the last row is never covered.
+    private let tabBarClearance: CGFloat = 70
 
     var body: some View {
         NavigationStack(path: $path) {
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 18) {
+            // Every service on one screen: a grid that sizes its tiles to the space, no scrolling.
+            GeometryReader { geo in
+                let rows = Int(ceil(Double(categories.count) / Double(columns)))
+                let width = (geo.size.width - 32 - gap * CGFloat(columns - 1)) / CGFloat(columns)
+                let height = (geo.size.height - tabBarClearance - 8 - gap * CGFloat(rows - 1)) / CGFloat(rows)
+                LazyVGrid(
+                    columns: Array(repeating: GridItem(.fixed(width), spacing: gap), count: columns),
+                    spacing: gap
+                ) {
                     ForEach(categories) { cat in
-                        GoatFullCard(
-                            category: cat,
-                            imageName: categoryImage[cat] ?? "art_01"
-                        )
-                        .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                        .onTapGesture { path.append(cat) }
+                        ServiceTile(category: cat, imageName: cat.heroImageName)
+                            .frame(width: width, height: max(height, 80))
+                            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                            .onTapGesture {
+                                Haptics.tap()
+                                path.append(cat)
+                            }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
-                .padding(.bottom, 110)
             }
             .background(Color.picardoBackground)
             .navigationBarTitleDisplayMode(.inline)
@@ -570,6 +578,46 @@ struct DiscoverView: View {
         .onChange(of: path.count) { _, count in
             HeroVideoControl.setEnabled(count < 2)
         }
+    }
+}
+
+// MARK: - Service tile (Services grid)
+
+struct ServiceTile: View {
+    let category: ServiceCategory
+    let imageName: String
+
+    var body: some View {
+        Color.black
+            .overlay {
+                ArtworkImage(imageName: imageName, contentMode: .fill, maxDimension: 700)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+            }
+            .overlay {
+                LinearGradient(
+                    colors: [.clear, .black.opacity(0.15), .black.opacity(0.75)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .overlay(alignment: .bottomLeading) {
+                Text(category.rawValue)
+                    .font(.system(size: 15, weight: .bold, design: .serif))
+                    .foregroundStyle(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
+                    .padding(10)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+            )
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(category.rawValue)
+            .accessibilityAddTraits(.isButton)
     }
 }
 

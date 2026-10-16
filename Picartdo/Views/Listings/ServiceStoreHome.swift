@@ -19,11 +19,18 @@ enum ServiceGallery {
     /// The photo a store card leads with: a category studio photo when one exists,
     /// otherwise the artist's own cover.
     static func coverPhoto(for artist: Artist, in category: ServiceCategory) -> String {
-        studioPhoto(for: artist, in: category) ?? artist.storePhotos.first ?? artist.serviceCoverName
+        if category == .wallpaper {
+            // Wallpaper studios show wallpapers, never other artwork.
+            let pack = WallpaperPack.waves.images
+            let seed = artist.name.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
+            return pack[seed % pack.count]
+        }
+        return studioPhoto(for: artist, in: category) ?? artist.storePhotos.first ?? artist.serviceCoverName
     }
 
     /// Hero still: `{slug}_studio_01` when present, otherwise `{slug}_hero`.
     static func heroPhoto(for category: ServiceCategory) -> String {
+        if category == .wallpaper { return "wave_rainbow" }
         let studio = "\(category.assetSlug)_studio_01"
         return UIImage(named: studio) != nil ? studio : category.heroImageName
     }
@@ -164,6 +171,10 @@ struct ServiceStoreHomeView: View {
     }
 
     var body: some View {
+        storePage
+    }
+
+    private var storePage: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 hero
@@ -171,6 +182,11 @@ struct ServiceStoreHomeView: View {
                 searchAndFilters
                     .padding(.top, 16)
                     .padding(.bottom, 22)
+
+                if category == .wallpaper {
+                    WallpaperPackSection(pack: .waves)
+                        .padding(.bottom, 28)
+                }
 
                 if filter == .all, !nearbyStores.isEmpty {
                     nearbyRow

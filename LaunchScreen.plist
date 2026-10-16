@@ -6,6 +6,8 @@
 	<string>Take a photo of an artwork and Picasso will tell you about it or find similar pieces.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Picasso listens when you tap the mic so you can ask about art out loud.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save wallpapers and artwork from Picartdo to your photo library.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Picasso turns what you say into text so it can answer your art questions.</string>
 	<key>UILaunchScreen</key>

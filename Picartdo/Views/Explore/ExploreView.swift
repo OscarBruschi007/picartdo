@@ -51,7 +51,7 @@ struct ExploreView: View {
 
     private var matchedServices: [ServiceCategory] {
         let q = trimmedQuery.lowercased()
-        let pool = ServiceCategory.allCases
+        let pool = ServiceCategory.offered
         guard !q.isEmpty else { return Array(pool.prefix(8)) }
         return pool.filter {
             hits(q, $0.rawValue, $0.introLine)

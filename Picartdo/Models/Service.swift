@@ -259,3 +259,11 @@ extension Service {
         )
     ]
 }
+
+extension ServiceCategory {
+    /// Categories shown in the app. Art Restoration, Painting Services and
+    /// Ceramics & Pottery are kept in the model but hidden for now.
+    static let offered: [ServiceCategory] = allCases.filter {
+        ![.restoration, .paintingService, .ceramics].contains($0)
+    }
+}
