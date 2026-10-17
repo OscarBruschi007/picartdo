@@ -314,6 +314,11 @@ private struct PicassoChatTab: View {
         }
     }
 
+    private func saveKey() {
+        viewModel.saveDeveloperKey(developerKey)
+        developerKey = ""
+    }
+
     private var connectionBanner: some View {
         VStack(alignment: .leading, spacing: 10) {
             if !viewModel.isNetworkAvailable {
@@ -338,20 +343,25 @@ private struct PicassoChatTab: View {
             } else {
                 Label("Catalog only", systemImage: "sparkles")
                     .font(.caption.weight(.semibold))
-                Text("Sign in for the full AI, or paste an Anthropic API key. Saved in this phone’s Keychain.")
+                Text(AppConfig.isBackendConfigured
+                     ? "Sign in for the full AI, or paste an Anthropic API key below."
+                     : "Picasso is answering from the catalog. Paste an Anthropic API key to turn on the full AI (photos, real conversation). It's saved in this phone's Keychain.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                Button {
-                    showAuth = true
-                } label: {
-                    Text("Sign in")
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(Color.picardoAccent, in: Capsule())
+                // Sign in only works once the Supabase backend is set up; hide it until then.
+                if AppConfig.isBackendConfigured {
+                    Button {
+                        showAuth = true
+                    } label: {
+                        Text("Sign in")
+                            .font(.callout.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(Color.picardoAccent, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
                 #if DEBUG
                 HStack(spacing: 8) {
                     SecureField("sk-ant-…", text: $developerKey)
@@ -365,18 +375,32 @@ private struct PicassoChatTab: View {
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .fill(Color.primary.opacity(0.08))
                         )
-                    Button("Save") {
-                        viewModel.saveDeveloperKey(developerKey)
-                        developerKey = ""
+                        .submitLabel(.done)
+                        .onSubmit { saveKey() }
+                    Button {
+                        if let pasted = UIPasteboard.general.string {
+                            developerKey = pasted.trimmingCharacters(in: .whitespacesAndNewlines)
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.clipboard")
+                            .font(.callout.weight(.semibold))
                     }
-                    .font(.callout.weight(.semibold))
-                    .disabled(developerKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .accessibilityLabel("Paste key")
+                    if viewModel.isCheckingKey {
+                        ProgressView()
+                    } else {
+                        Button("Save", action: saveKey)
+                            .font(.callout.weight(.semibold))
+                            .disabled(developerKey.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
                 }
                 if let error = viewModel.keyError {
                     Text(error)
                         .font(.caption)
                         .foregroundStyle(Color.picardoNeonRed)
                 }
+                Link("Get a key at console.anthropic.com", destination: URL(string: "https://console.anthropic.com/settings/keys")!)
+                    .font(.caption.weight(.semibold))
                 #endif
             }
         }

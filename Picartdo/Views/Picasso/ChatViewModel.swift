@@ -140,19 +140,71 @@ final class ChatViewModel: ObservableObject {
 
     /// Stores a developer key in the Keychain so Picasso works locally without the backend.
     /// Never used by release builds.
+    @Published private(set) var isCheckingKey = false
+
     func saveDeveloperKey(_ key: String) {
         #if DEBUG
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        guard PicassoAPIKeyStore.saveToKeychain(trimmed) else {
-            keyError = "Couldn't save the key. Try again."
+        guard !trimmed.isEmpty, !isCheckingKey else { return }
+        guard trimmed.hasPrefix("sk-ant-") else {
+            keyError = "That doesn't look like an Anthropic key. It starts with sk-ant-."
             return
         }
+        isCheckingKey = true
         keyError = nil
-        needsDeveloperKey = false
-        Task { await refreshKeyState() }
-        if let last = messages.last, last.isError, last.canRetry { retryLast() }
+        Task {
+            // Check the key with Anthropic before saving, so a bad key never hides this box.
+            let result = await Self.validate(key: trimmed)
+            isCheckingKey = false
+            switch result {
+            case .valid:
+                guard PicassoAPIKeyStore.saveToKeychain(trimmed) else {
+                    keyError = "Couldn't save the key. Try again."
+                    return
+                }
+                needsDeveloperKey = false
+                await refreshKeyState()
+                Haptics.success()
+                if let last = messages.last, last.isError, last.canRetry { retryLast() }
+            case .rejected:
+                keyError = "Anthropic rejected this key. Check it in console.anthropic.com."
+            case .offline:
+                keyError = "Couldn't reach Anthropic. Check your connection and try again."
+            }
+        }
         #endif
+    }
+
+    /// Removes the saved developer key (Picasso goes back to catalog-only answers).
+    func removeDeveloperKey() {
+        #if DEBUG
+        PicassoAPIKeyStore.clear()
+        Task { await refreshKeyState() }
+        #endif
+    }
+
+    var hasDeveloperKey: Bool {
+        #if DEBUG
+        !(PicassoAPIKeyStore.resolve() ?? "").isEmpty
+        #else
+        false
+        #endif
+    }
+
+    private enum KeyCheck { case valid, rejected, offline }
+
+    private static func validate(key: String) async -> KeyCheck {
+        var request = URLRequest(url: URL(string: "https://api.anthropic.com/v1/models?limit=1")!)
+        request.setValue(key, forHTTPHeaderField: "x-api-key")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.timeoutInterval = 15
+        guard let (_, response) = try? await URLSession.shared.data(for: request),
+              let status = (response as? HTTPURLResponse)?.statusCode else { return .offline }
+        switch status {
+        case 200..<300: return .valid
+        case 401, 403: return .rejected
+        default: return .offline
+        }
     }
 
     // MARK: - Network
