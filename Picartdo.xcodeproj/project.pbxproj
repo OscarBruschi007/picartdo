@@ -256,9 +256,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LaunchScreen.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Picartdo;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take a photo of an artwork and Picasso will tell you about it or find similar pieces.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Confirm Apple Pay with Face ID when you buy a piece on Picartdo.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Picasso listens when you tap the mic so you can ask about art out loud.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save wallpapers and artwork from Picartdo to your photo library.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Picasso turns what you say into text so it can answer your art questions.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -294,9 +296,11 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = LaunchScreen.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Picartdo;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.business";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Take a photo of an artwork and Picasso will tell you about it or find similar pieces.";
 				INFOPLIST_KEY_NSFaceIDUsageDescription = "Confirm Apple Pay with Face ID when you buy a piece on Picartdo.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Picasso listens when you tap the mic so you can ask about art out loud.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Save wallpapers and artwork from Picartdo to your photo library.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Picasso turns what you say into text so it can answer your art questions.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

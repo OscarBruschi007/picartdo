@@ -16,3 +16,6 @@ xcuserdata/
 .demo-frames/
 .git-old-backup/
 .autosave.log
+
+# Marketing images (local only)
+Marketing/Polaroids/
