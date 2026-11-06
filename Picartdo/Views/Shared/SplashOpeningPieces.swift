@@ -25,14 +25,14 @@ struct PicardoBrandWordmark: View {
     var size: CGFloat = 24
     var tracking: CGFloat = 2.5
 
-    private static let picColor = Color.picardoNeonRed
-    private static let artColor = Color(red: 0.949, green: 0.702, blue: 0.239)
-    private static let doColor = Color(red: 0.231, green: 0.447, blue: 0.718)
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Solid black ink; flips to white in dark mode so it never disappears on a black canvas.
+    private var ink: Color { colorScheme == .dark ? .white : .black }
 
     var body: some View {
-        (Text("Pic").foregroundStyle(Self.picColor)
-         + Text("art").foregroundStyle(Self.artColor)
-         + Text("do").foregroundStyle(Self.doColor))
+        Text("Picartdo")
+            .foregroundStyle(ink)
             .font(.system(size: size, weight: .black, design: .serif))
             .kerning(tracking)
             .lineLimit(1)

@@ -69,7 +69,7 @@ final class HomeFeedStore {
         studioVideos = ArtistPost.studioVideos.shuffled()
         storyArtists = Self.storyCast
         articles = Array(HomeArticle.samples.shuffled().prefix(4))
-        cityEvents = Array(ArtEventItem.samples.shuffled().prefix(3))
+        cityEvents = Self.homeEventPicks()
         layout = shuffledLayout()
         artistOfTheWeek = pickArtistOfTheWeek()
 
@@ -98,16 +98,41 @@ final class HomeFeedStore {
         return pick
     }
 
+    /// What Home's Exhibitions & Events card shows: the next two events coming up,
+    /// then one exhibition on view now (a different one each launch).
+    private static func homeEventPicks() -> [ArtEventItem] {
+        let today = Calendar.current.startOfDay(for: Date())
+        let upcoming = ArtEventItem.events
+            .filter { ($0.startDate ?? .distantPast) >= today }
+            .sorted { ($0.startDate ?? .distantPast) < ($1.startDate ?? .distantPast) }
+        let onNow = ArtEventItem.exhibitions.filter(\.isOnNow).shuffled()
+        let picks = Array(upcoming.prefix(2)) + Array(onNow.prefix(1))
+        // Fall back to anything if the programme has run out.
+        guard picks.count < 3 else { return picks }
+        var filled = picks
+        for item in ArtEventItem.samples where filled.count < 3 && !filled.contains(item) {
+            filled.append(item)
+        }
+        return filled
+    }
+
+    /// Shuffles the middle of Home for variety, with three fixed rules:
+    /// Artist of the Week stays high, Exhibitions & Events is always within the first
+    /// three sections, and the endless "More for you" feed is always last, so nothing
+    /// ever ends up buried beneath it.
     private func shuffledLayout() -> [HomeLayoutBlock] {
-        var rest = HomeLayoutBlock.allCases.filter { $0 != .artistOfTheWeek }.shuffled()
+        let pinned: Set<HomeLayoutBlock> = [.artistOfTheWeek, .events, .moreForYou]
+        var rest = HomeLayoutBlock.allCases.filter { !pinned.contains($0) }.shuffled()
         let last = UserDefaults.standard.stringArray(forKey: lastLayoutKey) ?? []
-        if rest.map(\.rawValue) == last.filter({ $0 != HomeLayoutBlock.artistOfTheWeek.rawValue }),
+        if rest.map(\.rawValue) == last.filter({ !pinned.map(\.rawValue).contains($0) }),
            rest.count > 1 {
             rest.append(rest.removeFirst())
         }
         // Keep Artist of the Week high — first or second after stories, never the bottom.
-        let slot = Int.random(in: 0...1)
-        rest.insert(.artistOfTheWeek, at: min(slot, rest.count))
+        rest.insert(.artistOfTheWeek, at: min(Int.random(in: 0...1), rest.count))
+        // Exhibitions & Events always shows near the top: second or third.
+        rest.insert(.events, at: min(Int.random(in: 1...2), rest.count))
+        rest.append(.moreForYou)
         UserDefaults.standard.set(rest.map(\.rawValue), forKey: lastLayoutKey)
         return rest
     }

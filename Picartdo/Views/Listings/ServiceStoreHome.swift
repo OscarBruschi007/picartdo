@@ -83,7 +83,7 @@ extension ServiceCategory {
         case .wallpaper:       return "Wallpaper studios"
         case .fashion:         return "Wearable art studios"
         case .paintingService: return "Painting studios"
-        case .liveEvent:       return "Exhibitions & venues"
+        case .liveEvent:       return "Exhibitions & events"
         case .classes:         return "Art workshops"
         case .sculpture:       return "Sculpture studios"
         case .ceramics:        return "Ceramics studios"
@@ -101,7 +101,7 @@ extension ServiceCategory {
         case .wallpaper:       return "Pattern designers for rooms, quiet or loud."
         case .fashion:         return "Garments and textiles made to order."
         case .paintingService: return "Commission a portrait, landscape or interior."
-        case .liveEvent:       return "Shows, live painting and nights around the work."
+        case .liveEvent:       return "What's on in Toronto, with tickets in one tap."
         case .classes:         return "Sit down, pick up a brush, take something home."
         case .sculpture:       return "Bronze, stone, wood and clay, made to commission."
         case .ceramics:        return "Working kilns for vessels, tiles and tableware."
@@ -179,22 +179,31 @@ struct ServiceStoreHomeView: View {
             VStack(alignment: .leading, spacing: 0) {
                 hero
 
-                searchAndFilters
-                    .padding(.top, 16)
-                    .padding(.bottom, 22)
+                if category == .liveEvent {
+                    // Art Exhibitions is about shows, not artist studios: real exhibitions,
+                    // events, tickets and visit info only.
+                    ExhibitionsServiceSection()
+                        .padding(.top, 16)
+                        // Room for the floating tab bar.
+                        .padding(.bottom, 120)
+                } else {
+                    searchAndFilters
+                        .padding(.top, 16)
+                        .padding(.bottom, 22)
 
-                if category == .wallpaper {
-                    WallpaperPackSection(pack: .waves)
-                        .padding(.bottom, 28)
+                    if category == .wallpaper {
+                        WallpaperPackSection(pack: .waves)
+                            .padding(.bottom, 28)
+                    }
+
+                    if filter == .all, !nearbyStores.isEmpty {
+                        nearbyRow
+                            .padding(.bottom, 28)
+                    }
+
+                    storeFeed
+                        .padding(.bottom, 56)
                 }
-
-                if filter == .all, !nearbyStores.isEmpty {
-                    nearbyRow
-                        .padding(.bottom, 28)
-                }
-
-                storeFeed
-                    .padding(.bottom, 56)
             }
         }
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }

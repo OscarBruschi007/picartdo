@@ -572,6 +572,14 @@ struct DiscoverView: View {
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
             }
+            // Art Exhibitions shows real exhibitions & events.
+            .navigationDestination(for: ArtEventItem.self) { event in
+                CityEventDetailView(event: event)
+            }
+            .navigationDestination(for: CityEventsList.self) { _ in
+                CityEventsView()
+                    .picardoPushedScreen()
+            }
         }
         .environment(\.heroVideoEnabled, path.count < 2)
         .onAppear { HeroVideoControl.setEnabled(path.count < 2) }

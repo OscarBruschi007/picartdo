@@ -170,6 +170,10 @@ struct SplashScreenView: View {
             return
         }
 
+        // Mount the app right away (invisible) so its heavy first layout happens while the
+        // splash is still, not in the middle of the glide — that was the source of the stutter.
+        mainAppReady = true
+
         sequenceTask = Task { @MainActor in
             do {
                 if reduceMotion {
@@ -239,9 +243,23 @@ struct SplashScreenView: View {
         mainAppReady = true
         recordOpen()
 
-        // Give a freshly mounted Home a moment to report where its header sits.
-        for _ in 0..<5 where homeWordmarkFrame == .zero {
-            try? await Task.sleep(for: .milliseconds(50))
+        // Wait for Home to report where its header sits AND for that spot to stop moving.
+        // The old 250 ms cap was often too short on a cold launch, so the wordmark faded
+        // instead of landing, or landed on a spot that shifted a frame later.
+        if landsOnHome {
+            var lastFrame: CGRect = .zero
+            var stableChecks = 0
+            for _ in 0..<60 {   // up to ~1.5 s
+                let frame = homeWordmarkFrame
+                if frame != .zero, frame == lastFrame {
+                    stableChecks += 1
+                    if stableChecks >= 2 { break }
+                } else {
+                    stableChecks = 0
+                }
+                lastFrame = frame
+                try? await Task.sleep(for: .milliseconds(25))
+            }
         }
 
         if reduceMotion {

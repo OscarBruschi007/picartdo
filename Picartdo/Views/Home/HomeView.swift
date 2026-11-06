@@ -448,6 +448,9 @@ struct HomeView: View {
                         StoriesRow(artists: storyArtists)
                             .padding(.bottom, 24)
 
+                        // ── Personal: shaped by who they said they are on first open ──
+                        personalSections
+
                         ForEach(homeFeed.layout) { block in
                             layoutSection(block)
                                 .padding(.bottom, block == .moreForYou ? 40 : 28)
@@ -505,6 +508,15 @@ struct HomeView: View {
                 guard !path.isEmpty else { return }
                 path = NavigationPath()
             }
+        }
+    }
+
+    /// Collectors (and "Both") see their wall first.
+    @ViewBuilder
+    private var personalSections: some View {
+        if let role = taste.role, role.collectsArt {
+            HomeWallPicks(mediums: taste.favoriteMediums, budget: taste.budget)
+                .padding(.bottom, 28)
         }
     }
 
@@ -883,9 +895,11 @@ struct CityEventRow: View {
                 Text(event.month)
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(Color.picardoGold)
-                Text("\(event.day)")
+                Text(event.day)
                     .font(.system(size: 18, weight: .black, design: .serif))
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
             }
             .frame(width: 44)
 
@@ -893,8 +907,8 @@ struct CityEventRow: View {
                 Text(event.title)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(1)
-                Text("\(event.venue) · \(event.type)")
+                    .lineLimit(2)
+                Text("\(event.type) · \(event.priceLabel)")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -902,9 +916,13 @@ struct CityEventRow: View {
 
             Spacer(minLength: 8)
 
-            Text(event.isOnline ? "Online" : event.distance)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.secondary)
+            Color.clear
+                .frame(width: 54, height: 54)
+                .overlay {
+                    ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 200)
+                        .allowsHitTesting(false)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -912,60 +930,16 @@ struct CityEventRow: View {
     }
 }
 
+/// The full Exhibitions & Events guide (Home → Read more, Explore, Services → See all).
 struct CityEventsView: View {
-    private let events = ArtEventItem.samples
-    private let types = ["All", "Exhibition", "Opening", "Gallery Opening", "Live Painting", "Open Studio"]
-    @State private var selectedType = "All"
-
-    private var filtered: [ArtEventItem] {
-        selectedType == "All" ? events : events.filter { $0.type == selectedType }
-    }
-
     var body: some View {
         ZStack {
             PicartdoBackground().ignoresSafeArea()
-            VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(types, id: \.self) { type in
-                            let active = selectedType == type
-                            Button {
-                                withAnimation(PicardoMotion.quick) { selectedType = type }
-                            } label: {
-                                Text(type)
-                                    .font(.system(size: 13, weight: active ? .semibold : .medium))
-                                    .foregroundStyle(active ? .white : .primary)
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 7)
-                                    .background(active ? Color.black : Color.picardoCard, in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                }
-
-                ScrollView(showsIndicators: false) {
-                    LazyVStack(spacing: 0) {
-                        ForEach(Array(filtered.enumerated()), id: \.element.id) { index, event in
-                            NavigationLink(value: event) {
-                                CityEventRow(event: event)
-                            }
-                            .buttonStyle(.plain)
-                            if index < filtered.count - 1 {
-                                Divider().padding(.leading, 58)
-                            }
-                        }
-                    }
-                    .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 40)
-                }
+            ScrollView(showsIndicators: false) {
+                EventsGuideContent()
+                    .padding(.top, 6)
+                    // Room for the floating tab bar so nothing is covered.
+                    .padding(.bottom, 120)
             }
         }
         .navigationTitle("Exhibitions & Events")
@@ -973,39 +947,279 @@ struct CityEventsView: View {
     }
 }
 
-struct CityEventDetailView: View {
+/// The guide itself, shared by the full page and Services → Art Exhibitions so both look
+/// the same. Built to be read at a glance: one switch (Exhibitions | Events), one
+/// featured exhibition, everything else as quiet list rows. Events read like a calendar,
+/// grouped by month with a date block on each row.
+struct EventsGuideContent: View {
+    enum Mode: String, CaseIterable, Identifiable {
+        case exhibitions = "Exhibitions"
+        case events = "Events"
+        var id: String { rawValue }
+    }
+
+    @State private var mode: Mode = .exhibitions
+
+    private static func byStart(_ a: ArtEventItem, _ b: ArtEventItem) -> Bool {
+        (a.startDate ?? .distantPast) < (b.startDate ?? .distantPast)
+    }
+
+    /// On view now, closing soonest first.
+    private var onNow: [ArtEventItem] {
+        ArtEventItem.exhibitions.filter(\.isOnNow)
+            .sorted { ($0.endDate ?? .distantFuture) < ($1.endDate ?? .distantFuture) }
+    }
+
+    private var openingSoon: [ArtEventItem] {
+        ArtEventItem.exhibitions.filter { !$0.isOnNow }.sorted(by: Self.byStart)
+    }
+
+    /// The headline exhibition: the first show on now in the AGO's own order
+    /// (they lead their exhibitions page with it).
+    private var featured: ArtEventItem? {
+        ArtEventItem.exhibitions.first(where: \.isOnNow)
+    }
+
+    /// Upcoming events grouped by month, in date order.
+    private var eventMonths: [(title: String, items: [ArtEventItem])] {
+        let today = Calendar.current.startOfDay(for: Date())
+        let upcoming = ArtEventItem.events
+            .filter { ($0.startDate ?? .distantPast) >= today }
+            .sorted(by: Self.byStart)
+        var months: [(title: String, items: [ArtEventItem])] = []
+        for event in upcoming {
+            let title = (event.startDate ?? today).formatted(.dateTime.month(.wide).year())
+            if let last = months.indices.last, months[last].title == title {
+                months[last].items.append(event)
+            } else {
+                months.append((title, [event]))
+            }
+        }
+        return months
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Picker("Show", selection: $mode.animation(PicardoMotion.quick)) {
+                ForEach(Mode.allCases) { Text($0.rawValue).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 20)
+
+            Group {
+                switch mode {
+                case .exhibitions: exhibitionsPage
+                case .events: eventsPage
+                }
+            }
+            .padding(.top, 22)
+        }
+    }
+
+    private var exhibitionsPage: some View {
+        VStack(alignment: .leading, spacing: 30) {
+            if let featured {
+                NavigationLink(value: featured) {
+                    FeaturedExhibitionCard(event: featured)
+                }
+                .buttonStyle(PicardoPressStyle())
+                .padding(.horizontal, 20)
+            }
+
+            let rest = onNow.filter { $0.id != featured?.id }
+            if !rest.isEmpty {
+                EventListSection(title: "Also on now", items: rest) { ExhibitionListRow(event: $0) }
+            }
+            if !openingSoon.isEmpty {
+                EventListSection(title: "Opening soon", items: openingSoon) { ExhibitionListRow(event: $0) }
+            }
+        }
+    }
+
+    private var eventsPage: some View {
+        VStack(alignment: .leading, spacing: 30) {
+            ForEach(eventMonths, id: \.title) { month in
+                EventListSection(title: month.title, items: month.items) { EventCalendarRow(event: $0) }
+            }
+        }
+    }
+}
+
+/// A titled, rounded group of rows, each opening its event.
+struct EventListSection<Row: View>: View {
+    let title: String
+    let items: [ArtEventItem]
+    @ViewBuilder let row: (ArtEventItem) -> Row
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(title)
+                .font(.system(size: 20, weight: .bold, design: .serif))
+                .foregroundStyle(Color.picardoText)
+                .padding(.horizontal, 24)
+
+            VStack(spacing: 0) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, event in
+                    NavigationLink(value: event) { row(event) }
+                        .buttonStyle(.plain)
+                    if index < items.count - 1 {
+                        Divider().padding(.leading, 16)
+                    }
+                }
+            }
+            .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
+            )
+            .padding(.horizontal, 20)
+        }
+    }
+}
+
+/// The one big image on the Exhibitions page.
+struct FeaturedExhibitionCard: View {
     let event: ArtEventItem
 
     var body: some View {
-        ZStack {
-            PicartdoBackground().ignoresSafeArea()
-            ScrollView(showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text(event.type.uppercased())
-                            .font(.system(size: 12, weight: .semibold))
-                            .tracking(1)
-                            .foregroundStyle(Color.picardoGold)
-                        Text(event.title)
-                            .font(.system(size: 28, weight: .black, design: .serif))
-                        Text("\(event.month) \(event.day) · \(event.venue)")
-                            .font(.system(size: 15, weight: .medium))
-                        Text("\(event.city) · \(event.isOnline ? "Online" : event.distance)")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary)
-                        Text("An exhibition and event happening in the city. Details, hours, and tickets will live here.")
-                            .font(.system(size: 17, design: .serif))
-                            .lineSpacing(6)
-                            .padding(.top, 8)
-                    }
-                    .padding(20)
-                    .padding(.top, 8)
-                    .padding(.bottom, 40)
+        VStack(alignment: .leading, spacing: 0) {
+            Color.picardoCardMid
+                .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                .overlay {
+                    ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 1100)
+                        .allowsHitTesting(false)
                 }
+                .clipped()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(event.dateLabel.uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(1)
+                    .foregroundStyle(Color.picardoGold)
+                Text(event.title)
+                    .font(.system(size: 22, weight: .bold, design: .serif))
+                    .foregroundStyle(Color.picardoText)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(event.summary)
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Text(event.priceLabel)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(Color.picardoText)
+                    Spacer()
+                    Text("Get tickets")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 16)
+                        .frame(height: 36)
+                        .background(Color.black, in: Capsule())
+                }
+                .padding(.top, 8)
             }
+            .multilineTextAlignment(.leading)
+            .padding(16)
         }
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(Color.picardoCard)
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(Color.black.opacity(0.05), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.08), radius: 16, y: 8)
+    }
+}
+
+/// A list row for an exhibition: small portrait photo, title, when, price.
+struct ExhibitionListRow: View {
+    let event: ArtEventItem
+
+    private var whenLabel: String {
+        if event.isOnNow {
+            if let end = event.endDate { return "Until \(end.formatted(.dateTime.month(.abbreviated).day().year()))" }
+            return "On view now"
+        }
+        guard let start = event.startDate else { return "" }
+        return "Opens \(start.formatted(.dateTime.month(.abbreviated).day().year()))"
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Color.picardoCardMid
+                .frame(width: 64, height: 80)
+                .overlay {
+                    ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 300)
+                        .allowsHitTesting(false)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event.title)
+                    .font(.system(size: 15.5, weight: .semibold, design: .serif))
+                    .foregroundStyle(Color.picardoText)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(whenLabel)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                Text(event.priceLabel)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.picardoText)
+            }
+            Spacer(minLength: 4)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(Color.picardoTextSecondary.opacity(0.6))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
+    }
+}
+
+/// A calendar-style row for an event: date block, what and when, small photo.
+struct EventCalendarRow: View {
+    let event: ArtEventItem
+
+    var body: some View {
+        HStack(spacing: 14) {
+            VStack(spacing: 1) {
+                Text((event.startDate ?? Date()).formatted(.dateTime.weekday(.abbreviated)).uppercased())
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Color.picardoGold)
+                Text((event.startDate ?? Date()).formatted(.dateTime.day()))
+                    .font(.system(size: 22, weight: .bold, design: .serif))
+                    .foregroundStyle(Color.picardoText)
+            }
+            .frame(width: 42)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(event.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.picardoText)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text(event.timeLabel)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                Text("\(event.type) · \(event.priceLabel)")
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Color.picardoText.opacity(0.75))
+            }
+            Spacer(minLength: 4)
+            Color.picardoCardMid
+                .frame(width: 56, height: 56)
+                .overlay {
+                    ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 240)
+                        .allowsHitTesting(false)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 }
 
@@ -1179,29 +1393,29 @@ struct StoryBubble: View {
                 Circle()
                     .fill(fillColor)
                 Image(systemName: "person.fill")
-                    .font(.system(size: 28, weight: .medium))
+                    .font(.system(size: 34, weight: .medium))
                     .foregroundStyle(Color.white.opacity(0.92))
                 if !artist.avatarImage.isEmpty {
-                    ArtworkImage(imageName: artist.avatarImage, contentMode: .fill, maxDimension: 280)
-                        .frame(width: 68, height: 68)
+                    ArtworkImage(imageName: artist.avatarImage, contentMode: .fill, maxDimension: 360)
+                        .frame(width: 86, height: 86)
                         .clipped()
                 }
             }
-            .frame(width: 68, height: 68)
+            .frame(width: 86, height: 86)
             .clipShape(Circle())
             .overlay(
                 Circle()
-                    .strokeBorder(ringColor, lineWidth: 2.5)
+                    .strokeBorder(ringColor, lineWidth: 3)
             )
 
             if showName {
                 Text(artist.name.components(separatedBy: " ").first ?? artist.name)
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
             }
         }
-        .frame(width: 76)
+        .frame(width: 94)
     }
 }
 

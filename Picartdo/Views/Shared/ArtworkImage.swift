@@ -25,7 +25,12 @@ struct ArtworkImage: View {
     }
 
     init(imageName: String, contentMode: ContentMode = .fill, maxDimension: CGFloat = 1080) {
-        self.source = .named(imageName)
+        // Event and exhibition images are web URLs; everything else is a bundled asset.
+        if imageName.hasPrefix("https://"), let url = URL(string: imageName) {
+            self.source = .url(url)
+        } else {
+            self.source = .named(imageName)
+        }
         self.contentMode = contentMode
         self.maxDimension = maxDimension
     }

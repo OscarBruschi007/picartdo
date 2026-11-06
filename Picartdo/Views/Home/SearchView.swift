@@ -48,28 +48,6 @@ struct ArtServiceItem: Identifiable, Hashable {
     ]
 }
 
-struct ArtEventItem: Identifiable, Hashable {
-    let id = UUID()
-    let title: String
-    let venue: String
-    let city: String
-    let month: String
-    let day: Int
-    let type: String
-    let imageName: String
-    let isOnline: Bool
-    let distance: String
-    let hoursUntil: Int?
-
-    static let samples: [ArtEventItem] = [
-        ArtEventItem(title: "Faces of the City", venue: "Cooper Cole", city: "Toronto, ON", month: "OCT", day: 11, type: "Exhibition", imageName: "red_dress_portrait", isOnline: false, distance: "1.4 mi", hoursUntil: nil),
-        ArtEventItem(title: "Sculpture After Dark", venue: "MoCA Toronto", city: "Toronto, ON", month: "OCT", day: 17, type: "Opening", imageName: "tagged_david", isOnline: false, distance: "2.0 mi", hoursUntil: nil),
-        ArtEventItem(title: "Colour Field Hang", venue: "Art Gallery of Ontario", city: "Toronto, ON", month: "OCT", day: 22, type: "Exhibition", imageName: "color_field", isOnline: false, distance: "1.1 mi", hoursUntil: nil),
-        ArtEventItem(title: "Live Painting Night", venue: "The Drake Hotel", city: "Toronto, ON", month: "NOV", day: 1, type: "Live Painting", imageName: "electric_face", isOnline: false, distance: "0.8 mi", hoursUntil: nil),
-        ArtEventItem(title: "Paper & People", venue: "Daniel Faria Gallery", city: "Toronto, ON", month: "NOV", day: 8, type: "Gallery Opening", imageName: "people_collage", isOnline: false, distance: "1.6 mi", hoursUntil: nil),
-        ArtEventItem(title: "Studio Open House", venue: "Picartdo Studio", city: "Toronto, ON", month: "NOV", day: 14, type: "Open Studio", imageName: "circle_worlds", isOnline: false, distance: "2.4 mi", hoursUntil: nil),
-    ]
-}
 
 struct ArtPlaceItem: Identifiable, Hashable {
     let id = UUID()
@@ -452,8 +430,8 @@ extension ListingCard {
             subtitle2: event.city,
             rating: nil,
             reviewCount: nil,
-            priceLabel: "\(event.month) \(event.day)",
-            priceSuffix: event.isOnline ? "Online" : event.distance
+            priceLabel: event.shortDateLabel,
+            priceSuffix: event.priceLabel
         )
     }
 
@@ -661,7 +639,7 @@ private struct ServicesTabContent: View {
 
 private struct EventsTabContent: View {
     let events = ArtEventItem.samples
-    let eventTypes = ["All", "Exhibition", "Opening", "Gallery Opening", "Live Painting", "Open Studio"]
+    let eventTypes = ArtEventItem.typeFilters
     @State private var selectedType = "All"
 
     private var filtered: [ArtEventItem] {
