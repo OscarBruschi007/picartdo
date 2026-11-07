@@ -87,6 +87,8 @@ struct ListingLiveView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.picardoBackground.ignoresSafeArea())
         .onAppear {
+            // The form's keyboard has no place on a celebration screen.
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             Haptics.success()
             if reduceMotion {
                 hung = true
@@ -284,6 +286,8 @@ struct CommissionSentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.picardoBackground.ignoresSafeArea())
         .onAppear {
+            // The form's keyboard has no place on a celebration screen.
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             Haptics.success()
             if reduceMotion { appeared = true }
             else { withAnimation(.spring(response: 0.45, dampingFraction: 0.6).delay(0.15)) { appeared = true } }

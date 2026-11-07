@@ -364,9 +364,12 @@ struct PickerField: View {
                 ForEach(options, id: \.self) { Text($0).tag($0) }
             }
             .tint(Color.picardoGold)
+            // One line at its natural width, so long options never wrap into the next row.
+            .fixedSize()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
+        .frame(minHeight: 44)
     }
 }
 
