@@ -400,9 +400,15 @@ struct HomeView: View {
     private var featuredArticles: [HomeArticle] { homeFeed.articles }
     private var cityEvents: [ArtEventItem] { homeFeed.cityEvents }
 
+    /// Tonight's piece: the featured work, then a few more to swipe through.
+    private var heroArtworks: [Artwork] {
+        [featured] + homeFeed.moreListings.filter { $0.id != featured.id }.prefix(4)
+    }
+
     /// Listing, video, listing, video — leftover videos or listings trail at the end.
     private var mixedFeed: [HomeFeedItem] {
-        let listings = homeFeed.moreListings
+        let heroIDs = Set(heroArtworks.map(\.id))
+        let listings = homeFeed.moreListings.filter { !heroIDs.contains($0.id) }
         let videos = homeFeed.studioVideos
         let count = max(listings.count, videos.count)
         var items: [HomeFeedItem] = []
@@ -427,6 +433,10 @@ struct HomeView: View {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 0) {
 
+                        // ── Today, here: the visit happens somewhere ──
+                        HomeDateLine()
+                            .padding(.top, 8)
+
                         // ── Picartdo wordmark — tap it, the era steps forward ──
                         PicardoBrandWordmark(size: 24, tracking: 2.5)
                             // During launch the splash wordmark flies onto this spot, then hands over.
@@ -435,7 +445,7 @@ struct HomeView: View {
                                 splashBridge?.reportWordmarkFrame(frame)
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.top, 12)
+                            .padding(.top, 6)
                             .padding(.bottom, 18)
                             .contentShape(Rectangle())
                             .onTapGesture {
@@ -446,17 +456,24 @@ struct HomeView: View {
 
                         // ── Circular artist stories ──
                         StoriesRow(artists: storyArtists)
-                            .padding(.bottom, 24)
+                            .padding(.bottom, 30)
 
-                        // ── Personal: shaped by who they said they are on first open ──
+                        // ── One piece to stop for ──
+                        TonightsPieceHero(artworks: heroArtworks) { buyArtwork = $0 }
+                            .id(featured.imageName)
+                            .padding(.bottom, 48)
+
+                        // ── Rooms, in order ──
                         personalSections
+                        StudioVisitSection(feature: homeFeed.artistOfTheWeek)
+                            .padding(.bottom, 48)
+                        eventsRoom
+                            .padding(.bottom, 48)
+                        readingRoom
+                            .padding(.bottom, 48)
+                        studiosFeed
 
-                        ForEach(homeFeed.layout) { block in
-                            layoutSection(block)
-                                .padding(.bottom, block == .moreForYou ? 40 : 28)
-                        }
-
-                        Color.clear.frame(height: 24)
+                        Color.clear.frame(height: 110)
                     }
                 }
                 .refreshable {
@@ -516,128 +533,66 @@ struct HomeView: View {
     private var personalSections: some View {
         if let role = taste.role, role.collectsArt {
             HomeWallPicks(mediums: taste.favoriteMediums, budget: taste.budget)
-                .padding(.bottom, 28)
+                .padding(.bottom, 48)
+        }
+    }
+
+    private var eventsRoom: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            GallerySectionHeader(title: "This week in Toronto", reason: "Exhibitions, talks and live events") {
+                GallerySeeAll(value: CityEventsList())
+            }
+            VStack(spacing: 0) {
+                ForEach(Array(cityEvents.enumerated()), id: \.element.id) { index, event in
+                    NavigationLink(value: event) {
+                        CityEventRow(event: event)
+                    }
+                    .buttonStyle(.plain)
+
+                    if index < cityEvents.count - 1 {
+                        Divider().padding(.leading, 58)
+                    }
+                }
+            }
+            .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
+            .padding(.horizontal, 16)
         }
     }
 
     @ViewBuilder
-    private func layoutSection(_ block: HomeLayoutBlock) -> some View {
-        switch block {
-        case .featured:
-            FeaturedHeroCard(
-                artwork: featured,
-                isSaved: wishlist.isLiked(featured),
-                onSave: { wishlist.toggle(featured) },
-                onBuy: { showBuySheet = true }
-            )
-            .id(featured.imageName)
-            .padding(.horizontal, 16)
-
-        case .artistOfTheWeek:
-            VStack(spacing: 8) {
-                Text("Artist of the Week")
-                    .font(.system(size: 23, weight: .black, design: .serif))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-
-                Text(homeFeed.artistOfTheWeek.artist?.name ?? "Coming soon")
-                    .font(.system(size: 16, weight: .medium, design: .serif))
-                    .foregroundStyle(Color.picardoTextSecondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: .infinity)
-
-                ArtistOfTheWeekCard(feature: homeFeed.artistOfTheWeek)
+    private var readingRoom: some View {
+        if !featuredArticles.isEmpty {
+            VStack(alignment: .leading, spacing: 16) {
+                GallerySectionHeader(title: "Reading", reason: "Stories from the National Gallery of Art") {
+                    GallerySeeAll(value: HomeArticlesList())
+                }
+                ReadingList(articles: featuredArticles)
             }
-            .padding(.horizontal, 16)
+        }
+    }
 
-        case .articles:
-            HomeSection(
-                title: "Articles",
-                subtitle: "National Gallery of Art",
-                accessory: {
-                    NavigationLink(value: HomeArticlesList()) {
-                        HStack(spacing: 3) {
-                            Text("See all")
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.picardoGold)
-                        .frame(minHeight: 44)
-                    }
-                }
-            ) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 12) {
-                        ForEach(featuredArticles) { article in
-                            NavigationLink(value: article) {
-                                HomeArticleCard(article: article)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-            }
-
-        case .events:
-            HomeSection(
-                title: "Exhibitions & Events",
-                subtitle: "Happening in the city",
-                accessory: {
-                    NavigationLink(value: CityEventsList()) {
-                        HStack(spacing: 3) {
-                            Text("See all")
-                            Image(systemName: "chevron.right")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.picardoGold)
-                        .frame(minHeight: 44)
-                    }
-                }
-            ) {
-                VStack(spacing: 0) {
-                    ForEach(Array(cityEvents.enumerated()), id: \.element.id) { index, event in
-                        NavigationLink(value: event) {
-                            CityEventRow(event: event)
-                        }
-                        .buttonStyle(.plain)
-
-                        if index < cityEvents.count - 1 {
-                            Divider().padding(.leading, 58)
+    @ViewBuilder
+    private var studiosFeed: some View {
+        if !mixedFeed.isEmpty {
+            VStack(alignment: .leading, spacing: 18) {
+                GallerySectionHeader(title: "From the studios", reason: "New work and studio moments, picked for you")
+                LazyVStack(spacing: 40) {
+                    ForEach(mixedFeed) { item in
+                        switch item {
+                        case .listing(let artwork):
+                            GalleryFeedCard(
+                                artwork: artwork,
+                                isSaved: wishlist.isLiked(artwork),
+                                onSave: { wishlist.toggle(artwork) },
+                                onBuy: { buyArtwork = artwork }
+                            )
+                        case .video(let post):
+                            PostCard(post: post)
                         }
                     }
                 }
-                .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .strokeBorder(Color.black.opacity(0.06), lineWidth: 1)
-                )
                 .padding(.horizontal, 16)
-            }
-
-        case .moreForYou:
-            if !mixedFeed.isEmpty {
-                HomeSection(title: "More for you", subtitle: "Listings & studio") {
-                    LazyVStack(spacing: 28) {
-                        ForEach(mixedFeed) { item in
-                            switch item {
-                            case .listing(let artwork):
-                                FeaturedHeroCard(
-                                    artwork: artwork,
-                                    isSaved: wishlist.isLiked(artwork),
-                                    onSave: { wishlist.toggle(artwork) },
-                                    onBuy: { buyArtwork = artwork }
-                                )
-                            case .video(let post):
-                                PostCard(post: post)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
             }
         }
     }
@@ -1375,57 +1330,46 @@ struct StoryBubble: View {
     let artist: Artist
     var showName: Bool = true
 
-    private var ringColor: Color {
-        let palette: [Color] = [
-            Color(red: 0.93, green: 0.40, blue: 0.55), // pink
-            Color(red: 0.35, green: 0.62, blue: 0.95), // blue
-            Color(red: 0.85, green: 0.68, blue: 0.20), // gold
-            Color(red: 0.30, green: 0.72, blue: 0.48), // green
-            Color(red: 0.62, green: 0.42, blue: 0.90), // purple
-            Color(red: 0.95, green: 0.55, blue: 0.30),
-            Color(red: 0.40, green: 0.70, blue: 0.85),
-        ]
-        let names = ["Elena Rossi", "Marcus Chen", "Lucía Vega", "Amara Diallo", "Kaia Svensson"]
-        if let idx = names.firstIndex(of: artist.name) {
-            return palette[idx % palette.count]
-        }
-        let index = Artist.all.firstIndex(where: { $0.id == artist.id }) ?? 0
-        return palette[index % palette.count]
-    }
-
-    private var fillColor: Color {
-        ringColor.opacity(0.22)
+    /// One ring for everyone, in the brand's own red: calm, recognisable, never a rainbow.
+    private var ring: AngularGradient {
+        AngularGradient(
+            colors: [Color.picardoNeonRed, Color.picardoGoldDeep, Color.picardoNeonRed],
+            center: .center
+        )
     }
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             ZStack {
                 Circle()
-                    .fill(fillColor)
+                    .fill(Color.picardoCard)
                 Image(systemName: "person.fill")
-                    .font(.system(size: 34, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.92))
+                    .font(.system(size: 30, weight: .medium))
+                    .foregroundStyle(Color.picardoTextSecondary.opacity(0.5))
                 if !artist.avatarImage.isEmpty {
                     ArtworkImage(imageName: artist.avatarImage, contentMode: .fill, maxDimension: 360)
-                        .frame(width: 86, height: 86)
+                        .frame(width: 78, height: 78)
                         .clipped()
                 }
             }
-            .frame(width: 86, height: 86)
+            .frame(width: 78, height: 78)
             .clipShape(Circle())
-            .overlay(
-                Circle()
-                    .strokeBorder(ringColor, lineWidth: 3)
-            )
+            // A hairline gap between photo and ring, the way premium story rings sit.
+            .padding(3)
+            .background(Circle().fill(Color.picardoBackground))
+            .padding(2.5)
+            .background(Circle().fill(ring))
 
             if showName {
                 Text(artist.name.components(separatedBy: " ").first ?? artist.name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 12.5, weight: .medium))
+                    .foregroundStyle(Color.picardoText.opacity(0.85))
                     .lineLimit(1)
             }
         }
         .frame(width: 94)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(artist.name)\u{2019}s story")
     }
 }
 

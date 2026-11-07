@@ -32,8 +32,18 @@ struct PicassoButton: View {
             pulse = false
             isOpen = true
         } label: {
-            PicassoAvatar(size: 38)
-                .shadow(color: Color.picardoAccent.opacity(0.30), radius: 6, y: 3)
+            // Glass, not paint: a quiet serif P that sits over the page without shouting.
+            Text("P")
+                .font(.system(size: 19, weight: .bold, design: .serif))
+                .foregroundStyle(Color.picardoText)
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular.interactive(), in: Circle())
+                .overlay(alignment: .topTrailing) {
+                    Image(systemName: "sparkle")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(Color.picardoNeonRed)
+                        .offset(x: -3, y: 4)
+                }
                 .scaleEffect(appeared ? (pulse ? 1.07 : 1) : 0.6)
                 .opacity(appeared ? 1 : 0)
         }

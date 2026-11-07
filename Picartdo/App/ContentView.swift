@@ -75,7 +75,7 @@ struct ContentView: View {
             .padding(.horizontal, 6)
             .frame(height: 64)
             // Liquid glass, tinted with the page colour so icons read over any artwork.
-            .glassEffect(.regular.tint(Color.picardoBackground.opacity(0.8)).interactive(), in: Capsule())
+            .glassEffect(.regular.tint(Color.picardoCard.opacity(0.5)).interactive(), in: Capsule())
             .padding(.horizontal, 20)
             .padding(.bottom, 22)
             .ignoresSafeArea(edges: .bottom)

@@ -26,27 +26,21 @@ struct HomeWallPicks: View {
         }
     }
 
-    private var subtitle: String {
-        var parts = ArtCategory.allCases.filter(mediums.contains).prefix(3).map(\.rawValue)
-        if let budget, budget != .browsing { parts.append(budget.price) }
-        return parts.isEmpty ? "The Collection of You" : parts.joined(separator: " · ")
+    /// Says why these pieces are here, in plain words.
+    private var reason: String {
+        let names = ArtCategory.allCases.filter(mediums.contains).prefix(2).map { $0.rawValue.lowercased() }
+        var line = names.isEmpty ? "Chosen from what collectors love most" : "Because you love " + names.joined(separator: " and ")
+        if let budget, budget != .browsing { line += " \u{00B7} " + budget.price }
+        return line
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(subtitle)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.picardoGold)
-                Text("Picked for your wall")
-                    .font(.system(size: 26, weight: .black, design: .serif))
-                    .foregroundStyle(Color.picardoText)
-            }
-            .padding(.horizontal, 16)
+        VStack(alignment: .leading, spacing: 10) {
+            GallerySectionHeader(title: "Picked for your wall", reason: reason)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 18) {
-                    ForEach(Array(picks.enumerated()), id: \.element.id) { index, artwork in
+                    ForEach(picks) { artwork in
                         NavigationLink(value: artwork) {
                             FramedPick(artwork: artwork, tilt: 0)
                         }
