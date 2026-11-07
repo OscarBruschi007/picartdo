@@ -75,6 +75,8 @@ struct ProfileGalleryHeader: View {
     var secondaryTitle: String
     var onSecondary: () -> Void
     var onReviews: () -> Void = {}
+    /// Artists taking commissions: CONTACT opens Message / Request a commission.
+    var onCommission: (() -> Void)? = nil
 
     @State private var shapeKind: ProfileAvatarShapeKind = .circle
     @State private var nameColorIndex = 0
@@ -99,6 +101,17 @@ struct ProfileGalleryHeader: View {
     private static let starGold = Color(red: 0.98, green: 0.76, blue: 0.18)
     private let coverHeight: CGFloat = 208
     private var avatarKind: ProfileAvatarShapeKind { shapeKind }
+    private var contactPill: some View {
+        Text("CONTACT")
+            .font(.system(size: 13, weight: .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 7)
+            .background(Color.picardoNeonRed, in: Capsule())
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+    }
+
     private var coverShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
     }
@@ -112,18 +125,30 @@ struct ProfileGalleryHeader: View {
             HStack(spacing: 0) {
                 audienceChip(count: person.followers, label: "FANS")
                 if !personal {
-                    Button {
-                        Haptics.tap()
-                        onSecondary()
-                    } label: {
-                        Text("CONTACT")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 7)
-                            .background(Color.picardoNeonRed, in: Capsule())
+                    Group {
+                        if let onCommission {
+                            Menu {
+                                Button("Message", systemImage: "bubble.left") {
+                                    Haptics.tap()
+                                    onSecondary()
+                                }
+                                Button("Request a commission", systemImage: "paintbrush.pointed") {
+                                    Haptics.tap()
+                                    onCommission()
+                                }
+                            } label: {
+                                contactPill
+                            }
+                        } else {
+                            Button {
+                                Haptics.tap()
+                                onSecondary()
+                            } label: {
+                                contactPill
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel("Contact")
                 }
@@ -203,7 +228,8 @@ struct ProfileGalleryHeader: View {
                 Group {
                     if personal, let custom = person.customCover {
                         Image(uiImage: custom).resizable().scaledToFill()
-                    } else if personal {
+                    } else if !person.coverAsset.isEmpty {
+                        // Every profile shows its cover, yours and every artist's.
                         ArtworkImage(imageName: person.coverAsset, contentMode: .fill, maxDimension: 1200)
                     } else {
                         Color.black
@@ -223,29 +249,32 @@ struct ProfileGalleryHeader: View {
             }
             .overlay {
                 VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        if personal {
-                            coverIconButton(
-                                systemName: "envelope.fill",
-                                label: "Messages",
-                                action: onSecondary
-                            )
-                        } else {
-                            Color.clear.frame(width: 72, height: 36)
+                    // The handle is centred on the cover itself, not between
+                    // the corner icons, so it lines up with the photo below.
+                    ZStack {
+                        HStack(spacing: 8) {
+                            if personal {
+                                coverIconButton(
+                                    systemName: "envelope.fill",
+                                    label: "Messages",
+                                    action: onSecondary
+                                )
+                            }
+                            Spacer(minLength: 0)
                         }
-                        Spacer(minLength: 8)
                         Text("@\(person.handle)")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.9))
                             .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .padding(.horizontal, 14)
                             .padding(.vertical, 6)
                             .background(.white.opacity(0.12), in: Capsule())
                             .overlay(Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5))
                             .glassEffect(.clear, in: Capsule())
-                        Spacer(minLength: 8)
-                        Color.clear.frame(width: 72, height: 36)
+                            .padding(.horizontal, 56)
                     }
+                    .frame(height: 36)
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
 

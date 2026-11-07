@@ -176,11 +176,7 @@ struct ArtistStoreView: View {
             thoughtsAuthor: artist.name,
             extraLinks: [],
             footer: "",
-            commission: ProfileCommissionInfo(
-                isOpen: artist.availableForCommissions,
-                startingPrice: artist.startingPrice,
-                action: { showCommission = true }
-            )
+            onRequestCommission: artist.availableForCommissions ? { showCommission = true } : nil
         ))
         .sheet(isPresented: $showCommission) {
             CommissionRequestView(artist: artist)

@@ -48,7 +48,7 @@ struct HomeWallPicks: View {
                 HStack(alignment: .top, spacing: 18) {
                     ForEach(Array(picks.enumerated()), id: \.element.id) { index, artwork in
                         NavigationLink(value: artwork) {
-                            FramedPick(artwork: artwork, tilt: index.isMultiple(of: 2) ? -1.2 : 0.9)
+                            FramedPick(artwork: artwork, tilt: 0)
                         }
                         .buttonStyle(.plain)
                     }
