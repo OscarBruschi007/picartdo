@@ -22,6 +22,15 @@ struct ProfilePageConfig {
     /// Profile-specific links, shown after Thoughts and Reviews (for example "Book").
     var extraLinks: [(String, () -> Void)] = []
     var footer: String
+    /// Commission status and the one action that goes with it: request one on an
+    /// artist's page, manage your own on yours. Shown on every profile.
+    var commission: ProfileCommissionInfo? = nil
+}
+
+struct ProfileCommissionInfo {
+    var isOpen: Bool
+    var startingPrice: String
+    var action: () -> Void
 }
 
 struct ProfilePageBody: View {
@@ -53,6 +62,16 @@ struct ProfilePageBody: View {
                         onReviews: { showReviews = true }
                     )
                     .padding(.bottom, 10)
+
+                    if let commission = config.commission {
+                        ProfileCommissionCard(
+                            info: commission,
+                            personal: config.personal,
+                            firstName: String(config.person.name.split(separator: " ").first ?? "")
+                        )
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
+                    }
 
                     ProfileTabBar(tab: $mediaTab, namespace: profileTabs)
                         .padding(.bottom, 1)
@@ -488,5 +507,79 @@ extension Artist {
                 frames: frames.isEmpty ? [cover] : frames
             )
         }
+    }
+}
+
+
+// MARK: - Commission card
+
+/// One clear doorway to a commission. On someone else's page it asks; on your own it
+/// shows what collectors see, with a way to change it.
+private struct ProfileCommissionCard: View {
+    let info: ProfileCommissionInfo
+    let personal: Bool
+    let firstName: String
+
+    private var title: String {
+        if personal { return info.isOpen ? "Your commissions are open" : "Your commissions are closed" }
+        return info.isOpen ? "Commissions open" : "Not taking commissions right now"
+    }
+
+    private var detail: String {
+        if !info.isOpen {
+            return personal ? "Collectors can\u{2019}t request a piece until you open them." : "Follow \(firstName) to hear when they open."
+        }
+        let price = info.startingPrice.isEmpty ? "" : "From \(info.startingPrice) \u{00B7} "
+        return personal ? "\(price)Collectors can request a piece from your page." : "\(price)Usually replies within 48 hours"
+    }
+
+    private var buttonTitle: String? {
+        if personal { return "Manage" }
+        return info.isOpen ? "Request a commission" : nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: info.isOpen ? "paintbrush.pointed.fill" : "paintbrush.pointed")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(info.isOpen ? Color.picardoNeonRed : Color.picardoTextSecondary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.picardoBackground, in: Circle())
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .bold, design: .serif))
+                        .foregroundStyle(Color.picardoText)
+                    Text(detail)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+
+            if let buttonTitle {
+                Button {
+                    Haptics.tap()
+                    info.action()
+                } label: {
+                    Text(buttonTitle)
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(personal ? Color.picardoText : .white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .background(personal ? Color.picardoBackground : Color.picardoNeonRed, in: Capsule())
+                        .overlay {
+                            if personal { Capsule().strokeBorder(Color.picardoBorder, lineWidth: 1) }
+                        }
+                }
+                .buttonStyle(PicardoPressStyle())
+            }
+        }
+        .padding(14)
+        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
+        .accessibilityElement(children: .contain)
     }
 }

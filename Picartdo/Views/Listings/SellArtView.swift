@@ -14,6 +14,9 @@ enum PricingMode: String, CaseIterable {
 }
 
 struct SellArtView: View {
+    /// Opens the artist's own studio after publishing (switches to the Profile tab).
+    var onViewStudio: (() -> Void)? = nil
+
     @Environment(\.dismiss) private var dismiss
     @Environment(SessionStore.self) private var session
 
@@ -46,6 +49,9 @@ struct SellArtView: View {
     @State private var autofillGeneration = 0
     @State private var confirmDiscard = false
     @State private var formHeight: CGFloat = 0
+    @State private var showDetails = false
+    @State private var autofillStep = ""
+    @State private var aiFilled = false
 
     /// Anything the artist would be sad to lose.
     private var hasDraft: Bool {
@@ -127,13 +133,21 @@ struct SellArtView: View {
             currency = SettingsStore.shared.flags.currency
             shipsWorldwide = identity.shipsWorldwide
         }
-        .alert(mode == .post ? "Posted!" : "Listed!", isPresented: $showSuccess) {
-            Button("Done") { dismiss() }
-        } message: {
-            Text(mode == .post
-                 ? "Your post is live on Picartdo."
-                 : "\"\(title)\" is now live on Picartdo.")
+        .overlay {
+            if showSuccess {
+                ListingLiveView(
+                    kind: mode == .post ? .post : .listing,
+                    image: selectedImage,
+                    title: mode == .post ? "" : title,
+                    priceLabel: mode == .post ? nil : publishedPriceLabel,
+                    caption: caption,
+                    onViewStudio: onViewStudio,
+                    onDone: { dismiss() }
+                )
+                .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.3), value: showSuccess)
         .sheet(isPresented: $showAuth) { AuthRequiredSheet() }
         .alert("Could not list artwork", isPresented: .init(
             get: { !submitError.isEmpty },
@@ -238,10 +252,28 @@ struct SellArtView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 if isAutofilling {
-                    Color.black.opacity(0.18)
-                    ProgressView().tint(.white)
+                    ZStack(alignment: .bottom) {
+                        Color.black.opacity(0.22)
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkles")
+                                .symbolEffect(.pulse)
+                            Text(autofillStep)
+                                .contentTransition(.opacity)
+                                .id(autofillStep)
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(.black.opacity(0.45), in: Capsule())
+                        .padding(.bottom, 16)
+                        .accessibilityElement(children: .combine)
+                    }
+                    .transition(.opacity)
                 }
             }
+            .animation(.easeInOut(duration: 0.25), value: isAutofilling)
+            .animation(.easeInOut(duration: 0.25), value: autofillStep)
             .overlay { goldCorners() }
             .background(Color.picardoBackground.opacity(0.28), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
@@ -334,6 +366,82 @@ struct SellArtView: View {
                 menuChip(currency, options: currencies) { currency = $0 }
             }
 
+            if aiFilled {
+                Label("Filled in by Picartdo AI. Tap anything to change it.", systemImage: "sparkles")
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 4)
+                    .transition(.opacity)
+            }
+
+            moreDetailsToggle
+
+            if showDetails {
+                detailFields
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .top)
+        .background(Color.picardoBackground.opacity(0.30), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(.white.opacity(0.34), lineWidth: 1)
+        )
+    }
+
+    /// Everything beyond photo, title and price waits behind one row, already
+    /// filled in where we can, so listing takes three taps instead of fourteen.
+    private var detailsSummary: String {
+        var parts = [selectedCategory.rawValue]
+        let m = medium.trimmingCharacters(in: .whitespaces)
+        if !m.isEmpty { parts.append(m) }
+        parts.append(condition)
+        let from = shipsFrom.trimmingCharacters(in: .whitespaces)
+        if !from.isEmpty { parts.append("Ships from \(from)") }
+        return parts.joined(separator: " \u{00B7} ")
+    }
+
+    private var moreDetailsToggle: some View {
+        Button {
+            Haptics.select()
+            withAnimation(PicardoMotion.quick) { showDetails.toggle() }
+        } label: {
+            HStack(spacing: 10) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("More details")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(detailsSummary)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .rotationEffect(.degrees(showDetails ? 180 : 0))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.picardoBackground.opacity(0.24), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(.white.opacity(0.28), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("More details")
+        .accessibilityValue(detailsSummary)
+        .accessibilityHint(showDetails ? "Hides category, size, edition and shipping" : "Shows category, size, edition and shipping")
+    }
+
+    private var detailFields: some View {
+        VStack(spacing: 8) {
             HStack(spacing: 8) {
                 labeledMenu("Category", value: selectedCategory.rawValue) {
                     ForEach(ArtCategory.allCases) { item in
@@ -370,13 +478,6 @@ struct SellArtView: View {
                 stackedToggle("Worldwide", isOn: $shipsWorldwide)
             }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .top)
-        .background(Color.picardoBackground.opacity(0.30), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(.white.opacity(0.34), lineWidth: 1)
-        )
     }
 
     @ViewBuilder
@@ -479,6 +580,11 @@ struct SellArtView: View {
         )
     }
 
+    private var publishedPriceLabel: String? {
+        guard let price = Double(askPrice) else { return nil }
+        return price.formatted(.currency(code: currency).precision(.fractionLength(0)))
+    }
+
     private var listingDescription: String {
         var lines: [String] = []
         let story = caption.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -505,22 +611,83 @@ struct SellArtView: View {
         submitListing()
     }
 
+    /// What the vision pass actually looks at, shown as it works. A result that
+    /// visibly took a moment of thought reads as considered, not as a glitch.
+    private static let autofillSteps = [
+        "Looking at your piece\u{2026}",
+        "Reading colour and subject\u{2026}",
+        "Naming the medium\u{2026}",
+        "Suggesting a price\u{2026}",
+    ]
+
     private func runAutofill(from image: UIImage) {
         autofillGeneration += 1
         let generation = autofillGeneration
+        aiFilled = false
+        autofillStep = Self.autofillSteps[0]
         isAutofilling = true
+        UIAccessibility.post(notification: .announcement, argument: "Picartdo AI is reading your piece")
+
+        // Walk through the steps while the real request runs.
         Task {
-            let draft = await ListingAutofillService.suggest(from: image)
+            for step in Self.autofillSteps.dropFirst() {
+                try? await Task.sleep(for: .milliseconds(650))
+                guard generation == autofillGeneration, isAutofilling else { return }
+                autofillStep = step
+            }
+        }
+
+        Task {
+            let started = ContinuousClock.now
+            let draft = await Self.autofillDraft(for: image)
+            // Let the steps finish so the result never pops in mid-sentence.
+            let minimum = Duration.milliseconds(2400)
+            let elapsed = ContinuousClock.now - started
+            if elapsed < minimum { try? await Task.sleep(for: minimum - elapsed) }
             guard generation == autofillGeneration else { return }
             isAutofilling = false
-            guard let draft else { return }
-            title = draft.title
-            caption = draft.caption
-            selectedCategory = draft.category
-            medium = draft.medium
-            condition = draft.condition
-            askPrice = "\(draft.askPrice)"
+
+            guard let draft else {
+                PicartdoToast.show(
+                    "Couldn\u{2019}t read this photo. Add the details yourself.",
+                    icon: "text.cursor"
+                )
+                return
+            }
+
+            // Fill one field at a time, so the artist sees exactly what was suggested.
+            let fills: [() -> Void] = [
+                { title = draft.title },
+                { caption = draft.caption },
+                { selectedCategory = draft.category; medium = draft.medium; condition = draft.condition },
+                { askPrice = "\(draft.askPrice)" },
+            ]
+            for fill in fills {
+                guard generation == autofillGeneration else { return }
+                withAnimation(.easeOut(duration: 0.25)) { fill() }
+                try? await Task.sleep(for: .milliseconds(140))
+            }
+            withAnimation(.easeOut(duration: 0.25)) { aiFilled = true }
+            Haptics.success()
         }
+    }
+
+    private static func autofillDraft(for image: UIImage) async -> ListingAutofillDraft? {
+        #if DEBUG
+        // `--demo-autofill`: a fixed suggestion, for testing the flow without an API key.
+        if ProcessInfo.processInfo.arguments.contains("--demo-autofill") {
+            try? await Task.sleep(for: .milliseconds(500))
+            return ListingAutofillDraft(
+                title: "Night Garden",
+                caption: "Deep blue blooms over a dotted black ground, painted in layered acrylic.",
+                category: .painting,
+                medium: "Acrylic on canvas",
+                condition: "Excellent",
+                askPrice: 850
+            )
+        }
+        #endif
+        return await ListingAutofillService.suggest(from: image)
     }
 
     private func submitListing() {

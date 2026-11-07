@@ -89,8 +89,11 @@ struct ContentView: View {
             if tab != 1 { HeroVideoControl.setEnabled(false) }
         }
         .fullScreenCover(isPresented: $showSellSheet) {
-            SellArtView()
-                .presentationBackground(.clear)
+            SellArtView(onViewStudio: {
+                showSellSheet = false
+                selectTab(3)
+            })
+            .presentationBackground(.clear)
         }
     }
 

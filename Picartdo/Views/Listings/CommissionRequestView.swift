@@ -33,6 +33,14 @@ struct CommissionRequestView: View {
                   "Extra Large (36×48 in)", "Custom size"]
     let timelines = ["ASAP (rush fee applies)", "2 weeks", "1 month", "2–3 months", "Flexible"]
 
+    private var requestSummary: [String] {
+        var parts = [size, timeline]
+        if let amount = Double(budget), amount > 0 {
+            parts.append("Budget " + amount.formatted(.currency(code: "USD").precision(.fractionLength(0))))
+        }
+        return parts
+    }
+
     var isValid: Bool {
         !name.trimmingCharacters(in: .whitespaces).isEmpty &&
         !description.trimmingCharacters(in: .whitespaces).isEmpty &&
@@ -237,17 +245,20 @@ struct CommissionRequestView: View {
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
-            .interactiveDismissDisabled(hasDraft)
+            .interactiveDismissDisabled(hasDraft && !showSuccess)
             .onAppear {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { appeared = true }
                 if name.isEmpty, let fullName = session.profile?.fullName { name = fullName }
                 if email.isEmpty, let userEmail = session.profile?.email { email = userEmail }
             }
-            .alert("Request Sent!", isPresented: $showSuccess) {
-                Button("Done") { dismiss() }
-            } message: {
-                Text("\(artist.name) will review your commission request and respond within 48 hours.")
+            .overlay {
+                if showSuccess {
+                    CommissionSentView(artist: artist, summary: requestSummary, onDone: { dismiss() })
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeInOut(duration: 0.3), value: showSuccess)
+            .toolbar(showSuccess ? .hidden : .visible, for: .navigationBar)
             .sheet(isPresented: $showAuth) { AuthRequiredSheet() }
             .alert("Could not send request", isPresented: .init(
                 get: { !submitError.isEmpty },

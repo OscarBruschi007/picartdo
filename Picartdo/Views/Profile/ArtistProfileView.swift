@@ -160,6 +160,7 @@ struct ArtistStoreView: View {
     let artist: Artist
 
     @State private var showContact = false
+    @State private var showCommission = false
 
     var body: some View {
         ProfilePageBody(config: ProfilePageConfig(
@@ -174,8 +175,16 @@ struct ArtistStoreView: View {
             reviews: ArtistReview.samples(for: artist),
             thoughtsAuthor: artist.name,
             extraLinks: [],
-            footer: ""
+            footer: "",
+            commission: ProfileCommissionInfo(
+                isOpen: artist.availableForCommissions,
+                startingPrice: artist.startingPrice,
+                action: { showCommission = true }
+            )
         ))
+        .sheet(isPresented: $showCommission) {
+            CommissionRequestView(artist: artist)
+        }
         .picardoSwipeBackOnly()
         .navigationDestination(for: Artist.self) { next in
             ArtistStoreView(artist: next)

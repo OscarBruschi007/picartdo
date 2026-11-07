@@ -39,7 +39,12 @@ struct ProfileView: View {
                 artworks: marketplace.listings,
                 reviews: ArtistReview.samples(for: .oscar),
                 thoughtsAuthor: Artist.oscar.name,
-                footer: "Joined Picartdo in \(String(identity.sinceYear))"
+                footer: "Joined Picartdo in \(String(identity.sinceYear))",
+                commission: ProfileCommissionInfo(
+                    isOpen: identity.commissionsOpen,
+                    startingPrice: identity.startingPrice,
+                    action: { showEdit = true }
+                )
             ))
             .navigationBarHidden(true)
             .navigationDestination(for: Artist.self) { artist in
