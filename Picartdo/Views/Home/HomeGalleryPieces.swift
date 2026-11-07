@@ -123,28 +123,9 @@ struct TonightsPieceHero: View {
     private func page(_ artwork: Artwork) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             NavigationLink(value: artwork) {
-                // The card's size comes first; the wash and the piece live inside it,
-                // so no artwork, however wide, can push the page sideways.
-                Color.picardoCard
+                GalleryArtworkTile(artwork: artwork, inset: 30, maxDimension: 1600)
                     .frame(maxWidth: .infinity)
                     .frame(height: 470)
-                    .overlay {
-                        // A wash of the piece's own colours, so every hero feels different.
-                        ArtworkImage(artwork: artwork, contentMode: .fill, maxDimension: 300)
-                            .blur(radius: 40)
-                            .opacity(0.55)
-                            .allowsHitTesting(false)
-                    }
-                    .overlay {
-                        ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: 1600)
-                            .shadow(color: .black.opacity(0.28), radius: 18, y: 12)
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 30)
-                            .allowsHitTesting(false)
-                    }
-                    .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(artwork.title) by \(artwork.artistName)")
@@ -268,27 +249,22 @@ struct StudioVisitSection: View {
                         }
                         .padding(20)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-                    .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 16)
                 .accessibilityLabel("Artist of the week: \(artist.name). \(feature.blurb)")
                 .accessibilityHint("Opens their studio")
 
-                if !works.isEmpty {
+                // Always a matching row of three, or nothing, never one stretched tile.
+                if works.count >= 3 {
                     HStack(spacing: 10) {
                         ForEach(works) { work in
                             NavigationLink(value: work) {
-                                Color.picardoCard
+                                GalleryArtworkTile(artwork: work, radius: GalleryRadius.small, inset: 9, maxDimension: 500)
                                     .frame(maxWidth: .infinity)
                                     .frame(height: 118)
-                                    .overlay {
-                                        ArtworkImage(artwork: work, contentMode: .fill, maxDimension: 500)
-                                            .allowsHitTesting(false)
-                                    }
-                                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             }
                             .buttonStyle(.plain)
                             .accessibilityLabel("\(work.title) by \(work.artistName)")
@@ -326,22 +302,13 @@ struct GalleryFeedCard: View {
     let onSave: () -> Void
     let onBuy: () -> Void
 
-    private var aspect: CGFloat {
-        let size = ArtworkImageCache.shared.pixelSize(for: artwork)
-        guard size.width > 0, size.height > 0 else { return 0.8 }
-        return min(max(size.width / size.height, 0.6), 1.5)
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             NavigationLink(value: artwork) {
-                ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: 1400)
-                    .aspectRatio(aspect, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .shadow(color: .black.opacity(0.10), radius: 14, y: 8)
-                    .allowsHitTesting(false)
-                    .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                GalleryArtworkTile(artwork: artwork)
                     .frame(maxWidth: .infinity)
+                    .aspectRatio(4.0 / 5.0, contentMode: .fit)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("\(artwork.title) by \(artwork.artistName)")
@@ -433,8 +400,44 @@ struct ReadingList: View {
             }
         }
         .padding(.horizontal, 16)
-        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
+        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
         .padding(.horizontal, 16)
+    }
+}
+
+// MARK: - One way to show art
+
+/// The single rule for artwork on Home: every piece hangs on the same wall (same
+/// colour, same margin, same soft shadow), whole and never cropped. Pieces
+/// photographed with a mat and pieces without one then read as one collection.
+enum GalleryRadius {
+    /// Heroes, features, feed tiles, videos, list cards.
+    static let large: CGFloat = 24
+    /// Thumbnails and small tiles.
+    static let small: CGFloat = 12
+}
+
+struct GalleryArtworkTile: View {
+    let artwork: Artwork
+    var radius: CGFloat = GalleryRadius.large
+    /// Space between the piece and the edge of the wall.
+    var inset: CGFloat = 26
+    var maxDimension: CGFloat = 1400
+
+    var body: some View {
+        Color.picardoCard
+            .overlay {
+                ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: maxDimension)
+                    .shadow(color: .black.opacity(0.18), radius: inset * 0.4, y: inset * 0.25)
+                    .padding(inset)
+                    .allowsHitTesting(false)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .strokeBorder(Color.picardoBorder, lineWidth: 0.5)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }

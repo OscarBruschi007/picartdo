@@ -554,8 +554,8 @@ struct HomeView: View {
                     }
                 }
             }
-            .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
+            .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
             .padding(.horizontal, 16)
         }
     }
@@ -887,7 +887,7 @@ struct CityEventRow: View {
                     ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 200)
                         .allowsHitTesting(false)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: GalleryRadius.small, style: .continuous))
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
@@ -1510,7 +1510,7 @@ struct PostCard: View {
     }
 
     private var videoShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 28, style: .continuous)
+        RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous)
     }
 
     /// One video card. Username top-right, likes / comment / share bottom-center — both on-glass.

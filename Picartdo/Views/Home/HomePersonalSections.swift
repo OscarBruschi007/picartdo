@@ -60,29 +60,17 @@ private struct FramedPick: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Color.clear
-                .frame(width: 150, height: 186)
-                .overlay {
-                    ArtworkImage(artwork: artwork, contentMode: .fill, maxDimension: 500)
-                        .scaleEffect(1.3) // crop the wall the piece was photographed on
-                        .allowsHitTesting(false)
-                }
-                .clipped()
-                .padding(7)
-                .background(Color.picardoPolaroidMat)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 4))
-                .shadow(color: .black.opacity(0.2), radius: 8, y: 6)
-                .rotationEffect(.degrees(tilt))
-                .contentShape(Rectangle())
+            GalleryArtworkTile(artwork: artwork, radius: GalleryRadius.large, inset: 14, maxDimension: 500)
+                .frame(width: 164, height: 205)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(artwork.title)
-                    .font(.system(size: 14, weight: .bold, design: .serif))
+                Text(artwork.artistName)
+                    .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(Color.picardoText)
                     .lineLimit(1)
-                Text(artwork.artistName)
-                    .font(.system(size: 11.5, design: .serif).italic())
-                    .foregroundStyle(Color.picardoTextSecondary)
+                Text(artwork.title)
+                    .font(.system(size: 14, weight: .semibold, design: .serif).italic())
+                    .foregroundStyle(Color.picardoText)
                     .lineLimit(1)
                 Text(artwork.price, format: .currency(code: "USD").precision(.fractionLength(0)))
                     .font(.system(size: 12, weight: .semibold))
