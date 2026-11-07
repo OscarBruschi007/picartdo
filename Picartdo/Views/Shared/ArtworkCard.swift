@@ -55,7 +55,7 @@ struct ArtworkCard: View {
             }
             if let onSave {
                 Button(action: onSave) {
-                    Label(isSaved ? "Unsave" : "Save", systemImage: isSaved ? "bookmark.slash" : "bookmark")
+                    Label(isSaved ? "Remove from saved" : "Save", systemImage: isSaved ? "heart.slash" : "heart")
                 }
             }
         }
@@ -75,7 +75,7 @@ struct ArtworkCard: View {
     private func saveButton(size: CGFloat, filled: Bool = false) -> some View {
         if let onSave {
             Button(action: onSave) {
-                Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                Image(systemName: isSaved ? "heart.fill" : "heart")
                     .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
                     .font(.system(size: size, weight: .medium))
                     .foregroundStyle(isSaved ? Color.picardoGold : (filled ? Color(white: 0.4) : Color(.secondaryLabel)))
@@ -200,7 +200,7 @@ struct ArtworkCard: View {
                         }
 
                         Button(action: { onSave?() }) {
-                            Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                            Image(systemName: isSaved ? "heart.fill" : "heart")
                                 .font(.system(size: 16, weight: .medium))
                                 .foregroundStyle(isSaved ? Color.picardoGold : Color(white: 0.35))
                         }
@@ -377,7 +377,7 @@ struct ArtworkCard: View {
                     }
 
                     Button(action: { onSave?() }) {
-                        Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                        Image(systemName: isSaved ? "heart.fill" : "heart")
                             .font(.system(size: 13))
                             .foregroundStyle(isSaved ? Color.picardoGold : Color(.secondaryLabel))
                     }

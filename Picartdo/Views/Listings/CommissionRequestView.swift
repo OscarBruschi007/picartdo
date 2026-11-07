@@ -248,7 +248,7 @@ struct CommissionRequestView: View {
             .interactiveDismissDisabled(hasDraft && !showSuccess)
             .onAppear {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { appeared = true }
-                if name.isEmpty, let fullName = session.profile?.fullName { name = fullName }
+                if name.isEmpty { name = session.profile?.fullName ?? ProfileIdentity.load().name }
                 if email.isEmpty, let userEmail = session.profile?.email { email = userEmail }
             }
             .overlay {
@@ -260,7 +260,7 @@ struct CommissionRequestView: View {
             .animation(.easeInOut(duration: 0.3), value: showSuccess)
             .toolbar(showSuccess ? .hidden : .visible, for: .navigationBar)
             .sheet(isPresented: $showAuth) { AuthRequiredSheet() }
-            .alert("Could not send request", isPresented: .init(
+            .alert("Your request wasn\u{2019}t sent", isPresented: .init(
                 get: { !submitError.isEmpty },
                 set: { if !$0 { submitError = "" } }
             )) {
@@ -299,7 +299,7 @@ struct CommissionRequestView: View {
                 )
                 showSuccess = true
             } catch {
-                submitError = error.localizedDescription
+                submitError = PicartdoErrorCopy.message(for: error, action: "send your request")
             }
         }
     }

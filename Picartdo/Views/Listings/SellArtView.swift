@@ -149,14 +149,14 @@ struct SellArtView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: showSuccess)
         .sheet(isPresented: $showAuth) { AuthRequiredSheet() }
-        .alert("Could not list artwork", isPresented: .init(
+        .alert("Your piece isn\u{2019}t listed yet", isPresented: .init(
             get: { !submitError.isEmpty },
             set: { if !$0 { submitError = "" } }
         )) {
             Button("Try Again") { submitError = ""; submit() }
             Button("Not Now", role: .cancel) { submitError = "" }
         } message: {
-            Text("\(submitError)\n\nYour photo and details are still here.")
+            Text("\(submitError)\n\nYour photo and details are saved here.")
         }
     }
 
@@ -381,6 +381,10 @@ struct SellArtView: View {
                 detailFields
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
+
+            PicartdoLegalNote(lead: "By listing")
+                .padding(.horizontal, 4)
+                .padding(.top, 2)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .top)
@@ -718,7 +722,7 @@ struct SellArtView: View {
                 )
                 showSuccess = true
             } catch {
-                submitError = error.localizedDescription
+                submitError = PicartdoErrorCopy.message(for: error, action: "list your piece")
             }
         }
     }

@@ -48,8 +48,8 @@ struct ContentView: View {
             .ignoresSafeArea(edges: .bottom)
 
             HStack(alignment: .center, spacing: 0) {
-                tabItem(icon: "house.fill",      label: "Home",     tag: 0)
-                tabItem(icon: "briefcase.fill",  label: "Services", tag: 1)
+                tabItem(icon: "house",           label: "Home",     tag: 0)
+                tabItem(icon: "briefcase",       label: "Services", tag: 1)
 
                 Button { showSellSheet = true } label: {
                     ZStack {
@@ -67,11 +67,12 @@ struct ContentView: View {
                 .frame(maxWidth: .infinity)
 
                 tabItem(icon: "magnifyingglass", label: "Explore",  tag: 2)
-                tabItem(icon: "person.fill",     label: "Profile",  tag: 3)
+                tabItem(icon: "person",          label: "Profile",  tag: 3)
             }
             .padding(.horizontal, 12)
             .frame(height: 60)
-            .glassEffect(.regular.interactive(), in: Capsule())
+            // Tinted with the page colour so labels stay readable over any artwork.
+            .glassEffect(.regular.tint(Color.picardoBackground.opacity(0.86)).interactive(), in: Capsule())
             .padding(.horizontal, 20)
             .padding(.bottom, 22)
             .ignoresSafeArea(edges: .bottom)
@@ -114,36 +115,31 @@ struct ContentView: View {
         selectedTab = tag
     }
 
-    private func tabTint(for tag: Int) -> Color {
-        switch tag {
-        case 0:  return Color(red: 1.00, green: 0.78, blue: 0.22)
-        case 1:  return Color(red: 0.22, green: 0.78, blue: 1.00)
-        case 2:  return Color(red: 0.82, green: 0.42, blue: 1.00)
-        default: return Color(red: 1.00, green: 0.32, blue: 0.52)
-        }
-    }
 
+    /// One icon family, one ink colour: filled and bold when selected, outlined and
+    /// quieter when not. The red + stays the only colour in the bar, so it stands out.
     @ViewBuilder
     private func tabItem(icon: String, label: String, tag: Int) -> some View {
-        let tint = tabTint(for: tag)
         let on = selectedTab == tag
-        Button { selectTab(tag) } label: {
+        Button {
+            if !on { Haptics.select() }
+            selectTab(tag)
+        } label: {
             VStack(spacing: 3) {
-                Image(systemName: icon)
-                    .font(.system(size: 23, weight: on ? .bold : .semibold))
-                    .foregroundStyle(tint)
-                    .symbolRenderingMode(.monochrome)
-                    .shadow(color: .black.opacity(0.55), radius: 3, y: 1)
-                    .shadow(color: .white.opacity(0.35), radius: 0.5)
+                Image(systemName: on && icon != "magnifyingglass" ? "\(icon).fill" : icon)
+                    .font(.system(size: 21, weight: on ? .semibold : .regular))
+                    .frame(height: 26)
                 Text(label)
-                    .font(.system(size: 10, weight: on ? .bold : .semibold))
-                    .foregroundStyle(tint)
-                    .shadow(color: .black.opacity(0.45), radius: 2, y: 1)
+                    .font(.system(size: 10, weight: on ? .semibold : .medium))
             }
-            .opacity(on ? 1 : 0.88)
+            .foregroundStyle(on ? Color.picardoText : Color.picardoTextSecondary)
             .animation(PicardoMotion.quick, value: selectedTab)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .contentShape(Rectangle())
         }
-        .frame(maxWidth: .infinity)
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+        .accessibilityAddTraits(on ? .isSelected : [])
     }
 }
 

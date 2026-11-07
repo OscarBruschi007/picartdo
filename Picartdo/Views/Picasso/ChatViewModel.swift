@@ -408,11 +408,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func finishWithNetworkError(_ error: Error) {
-        if (error as NSError).domain == NSURLErrorDomain {
-            finishWithError("Network issue — check your connection and retry.")
-        } else {
-            finishWithError("Something went wrong. Please retry.")
-        }
+        finishWithError(PicartdoErrorCopy.message(for: error, action: "reach Picasso"))
     }
 
     private func finishWithError(_ message: String) {

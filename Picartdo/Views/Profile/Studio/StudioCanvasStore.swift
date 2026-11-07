@@ -72,7 +72,7 @@ final class StudioCanvasStore {
             let data = try JSONEncoder().encode(layout)
             try data.write(to: url, options: [.atomic])
         } catch {
-            lastError = error.localizedDescription
+            lastError = "Your studio changes couldn\u{2019}t be saved on this iPhone. Free up some storage and try again."
         }
     }
 

@@ -42,7 +42,7 @@ struct ProfileSettingsSheet: View {
                         ])
 
                         settingsGroup("Content and display", rows: [
-                            .link("bookmark", "Saved", "Pieces you want later", .saved),
+                            .link("heart", "Saved", "Pieces you want later", .saved),
                             .link("globe", "Language and region", "Language, currency, units", .language),
                             .link("internaldrive", "Data and storage", "Download and cache", .dataStorage),
                         ])

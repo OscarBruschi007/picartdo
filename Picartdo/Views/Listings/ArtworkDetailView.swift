@@ -24,7 +24,10 @@ struct ArtworkDetailView: View {
         if !medium.isEmpty { parts.append(medium) }
         if !size.isEmpty { parts.append(size) }
         parts.append("Original 1 of 1")
-        return parts.joined(separator: " · ")
+        // Wrap only between facts, never inside one ("1 of 1" stays together).
+        return parts
+            .map { $0.replacingOccurrences(of: " ", with: "\u{00A0}") }
+            .joined(separator: " · ")
     }
 
     var body: some View {
@@ -104,7 +107,7 @@ struct ArtworkDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// Equal-width Inquire + Wants, above the floating tab bar.
+    /// Equal-width Inquire + Save, above the floating tab bar.
     private var listingActions: some View {
         HStack(spacing: 10) {
             Button {
@@ -128,7 +131,14 @@ struct ArtworkDetailView: View {
             Button {
                 withAnimation(PicardoMotion.quick) { wishlist.toggle(artwork) }
             } label: {
-                Text(artwork.isSold ? "SOLD OUT" : (isWanted ? "WANTED" : "WANTS"))
+                HStack(spacing: 7) {
+                    if !artwork.isSold {
+                        Image(systemName: isWanted ? "heart.fill" : "heart")
+                            .font(.system(size: 14, weight: .semibold))
+                            .contentTransition(.symbolEffect(.replace))
+                    }
+                    Text(artwork.isSold ? "SOLD OUT" : (isWanted ? "SAVED" : "SAVE"))
+                }
                     .font(PicardoType.cta())
                     .kerning(0.8)
                     .foregroundStyle(.white)
@@ -143,7 +153,7 @@ struct ArtworkDetailView: View {
             }
             .buttonStyle(PicardoPressStyle())
             .disabled(artwork.isSold)
-            .accessibilityLabel(artwork.isSold ? "Sold out" : (isWanted ? "Wanted" : "Wants"))
+            .accessibilityLabel(artwork.isSold ? "Sold out" : (isWanted ? "Saved. Remove from saved pieces" : "Save to your saved pieces"))
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 72)
@@ -795,6 +805,7 @@ struct BuyConfirmationSheet: View {
             .background(PicartdoBackground().ignoresSafeArea())
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
+            .onAppear(perform: prefillShipping)
             .toolbar {
                 if !didSucceed {
                     ToolbarItem(placement: .topBarLeading) {
@@ -824,7 +835,7 @@ struct BuyConfirmationSheet: View {
             }
             Button("Not Now", role: .cancel) { paymentError = nil }
         } message: {
-            Text("\(paymentError ?? "Something went wrong.")\n\nNothing was charged, and your details are still here.")
+            Text("\(paymentError ?? "We couldn\u{2019}t complete your payment.")\n\nNothing was charged, and your details are still here.")
         }
         .onChange(of: paymentError) { _, error in
             if error != nil { Haptics.error() }
@@ -849,6 +860,22 @@ struct BuyConfirmationSheet: View {
         let story = artwork.description.trimmingCharacters(in: .whitespacesAndNewlines)
         if !story.isEmpty { return story }
         return "\(artwork.category.rawValue) on Picartdo."
+    }
+
+    /// Never ask for what we already know: start from the saved default address and
+    /// the profile name. Everything stays editable.
+    private func prefillShipping() {
+        if shipName.isEmpty {
+            shipName = session.profile?.fullName ?? ProfileIdentity.load().name
+        }
+        guard shipLine1.isEmpty else { return }
+        let saved = SettingsStore.shared.addresses
+        guard let address = saved.first(where: \.isDefault) ?? saved.first else { return }
+        shipLine1 = address.line1
+        shipCity = address.city
+        shipState = address.region
+        shipZIP = address.postal
+        shipCountry = address.country
     }
 
     private var shipsDomestic: Bool {
@@ -963,6 +990,9 @@ struct BuyConfirmationSheet: View {
             Text("Packed and tracked · 7–14 days · 14-day returns")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+
+            PicartdoLegalNote(lead: "By paying")
                 .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 20)
@@ -1112,12 +1142,10 @@ struct BuyConfirmationSheet: View {
             } else if response.status == "succeeded" {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) { didSucceed = true }
             } else {
-                paymentError = response.error ?? "Payment could not be completed."
+                paymentError = "Your card wasn\u{2019}t charged. Check your card details, or try another payment method."
             }
         } catch {
-            paymentError = (error as? URLError) != nil
-                ? "You seem to be offline. Check your connection."
-                : error.localizedDescription
+            paymentError = PicartdoErrorCopy.message(for: error, action: "complete your payment")
         }
     }
 

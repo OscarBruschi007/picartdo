@@ -88,7 +88,7 @@ struct CityEventDetailView: View {
                 }
             }
             // Sized to its content, like Apple Pay, instead of a full-height sheet.
-            .presentationDetents([.height(event.isExhibition ? 720 : (event.isFree ? 580 : 660))])
+            .presentationDetents([.height(event.isExhibition ? 752 : (event.isFree ? 612 : 692))])
             .presentationDragIndicator(.hidden)
             .presentationCornerRadius(38)
         }

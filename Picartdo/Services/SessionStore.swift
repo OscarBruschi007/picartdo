@@ -35,12 +35,12 @@ final class SessionStore {
 
         switch result {
         case .failure(let error):
-            authError = error.localizedDescription
+            authError = PicartdoErrorCopy.signIn(error)
         case .success(let auth):
             guard let credential = auth.credential as? ASAuthorizationAppleIDCredential,
                   let tokenData = credential.identityToken,
                   let idToken = String(data: tokenData, encoding: .utf8) else {
-                authError = "Invalid Apple credential"
+                authError = "Apple didn\u{2019}t return your sign-in details. Try again."
                 return
             }
             do {
@@ -52,7 +52,7 @@ final class SessionStore {
                 )
                 profile = try await client.fetchCurrentUser()
             } catch {
-                authError = error.localizedDescription
+                authError = PicartdoErrorCopy.signIn(error)
             }
         }
     }

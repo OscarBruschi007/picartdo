@@ -73,7 +73,7 @@ final class ExploreViewModel {
         } catch is CancellationError {
             // superseded by a newer query — ignore
         } catch {
-            phase = .error("Something went wrong loading artworks. Please try again.")
+            phase = .error("We couldn\u{2019}t load artworks. Check your connection and pull to refresh.")
         }
     }
 

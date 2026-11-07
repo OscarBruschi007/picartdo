@@ -557,9 +557,14 @@ struct HomeView: View {
                 subtitle: "National Gallery of Art",
                 accessory: {
                     NavigationLink(value: HomeArticlesList()) {
-                        Text("Read more ..")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.picardoGold)
+                        HStack(spacing: 3) {
+                            Text("See all")
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.picardoGold)
+                        .frame(minHeight: 44)
                     }
                 }
             ) {
@@ -582,9 +587,14 @@ struct HomeView: View {
                 subtitle: "Happening in the city",
                 accessory: {
                     NavigationLink(value: CityEventsList()) {
-                        Text("Read more ..")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.picardoGold)
+                        HStack(spacing: 3) {
+                            Text("See all")
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.picardoGold)
+                        .frame(minHeight: 44)
                     }
                 }
             ) {

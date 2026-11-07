@@ -1042,7 +1042,7 @@ struct SavedSettingsView: View {
                             Button {
                                 wishlist.toggle(art)
                             } label: {
-                                Image(systemName: "bookmark.fill")
+                                Image(systemName: "heart.fill")
                                     .accessibilityLabel("Remove \(art.title) from saved")
                                     .foregroundStyle(Color.picardoGold)
                             }

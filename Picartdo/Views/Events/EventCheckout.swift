@@ -34,7 +34,7 @@ struct ApplePayCheckoutSheet: View {
     private var days: [Date] { event.bookableDays() }
     private var total: Double { event.price * Double(quantity) }
     private var totalLabel: String {
-        total == 0 ? "Free" : total.formatted(.currency(code: "CAD"))
+        total == 0 ? "Free" : total.formatted(.currency(code: "CAD").precision(.fractionLength(0)))
     }
 
     var body: some View {
@@ -90,10 +90,13 @@ struct ApplePayCheckoutSheet: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color(.secondaryLabel))
                     .frame(width: 30, height: 30)
                     .background(Color(.tertiarySystemFill), in: Circle())
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
             .disabled(phase != .review)
             .accessibilityLabel("Cancel")
         }
@@ -260,7 +263,8 @@ struct ApplePayCheckoutSheet: View {
                 if let errorText {
                     Text(errorText)
                         .font(.system(size: 13))
-                        .foregroundStyle(.red)
+                        .foregroundStyle(Color.picardoNeonRed)
+                        .multilineTextAlignment(.center)
                 }
                 Button(action: confirm) {
                     HStack(spacing: 8) {
@@ -276,6 +280,8 @@ struct ApplePayCheckoutSheet: View {
                 }
                 .buttonStyle(PicardoPressStyle())
                 .disabled(selectedDay == nil)
+
+                PicartdoLegalNote(lead: event.isFree ? "By registering" : "By paying")
             case .scanning:
                 VStack(spacing: 10) {
                     Image(systemName: "faceid")
@@ -435,7 +441,7 @@ struct EventTicketView: View {
                     .font(.system(size: 17, weight: .bold, design: .monospaced))
                     .tracking(2)
                     .foregroundStyle(.black)
-                Text(ticket.isFree ? "Free registration" : "Paid \(ticket.total.formatted(.currency(code: "CAD"))) · Demo")
+                Text(ticket.isFree ? "Free registration" : "Paid \(ticket.total.formatted(.currency(code: "CAD").precision(.fractionLength(0)))) · Demo")
                     .font(.system(size: 12))
                     .foregroundStyle(.black.opacity(0.5))
             }

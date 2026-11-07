@@ -9,17 +9,32 @@ struct AuthRequiredSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
+            VStack(spacing: 0) {
                 Spacer()
-                Text("Sign in to continue")
-                    .font(.system(size: 22, weight: .bold))
-                Text("Create an account or sign in with Apple to buy, sell, and message artists.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
 
-                SignInWithAppleButton(.signIn) { request in
+                Text("P")
+                    .font(.system(size: 44, weight: .bold, design: .serif))
+                    .foregroundStyle(Color.picardoNeonRed)
+                    .frame(width: 84, height: 84)
+                    .background(Color.picardoCream, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.08), radius: 10, y: 4)
+                    .accessibilityHidden(true)
+
+                Text("Sign in to Picartdo")
+                    .font(.system(size: 26, weight: .black, design: .serif))
+                    .foregroundStyle(Color.picardoText)
+                    .padding(.top, 22)
+
+                Text("One account to save pieces, message artists, and buy or sell art.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 8)
+                    .padding(.horizontal, 36)
+
+                Spacer()
+
+                SignInWithAppleButton(.continue) { request in
                     AppleSignInNonce.current = UUID().uuidString
                     request.requestedScopes = [.fullName, .email]
                 } onCompletion: { result in
@@ -29,21 +44,31 @@ struct AuthRequiredSheet: View {
                     }
                 }
                 .signInWithAppleButtonStyle(.black)
-                .frame(height: 50)
-                .padding(.horizontal, 32)
+                .frame(height: 52)
+                .clipShape(Capsule())
+                .padding(.horizontal, 28)
 
                 if let error = session.authError {
-                    Text(error)
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 32)
+                    Label(error, systemImage: "exclamationmark.circle")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.picardoNeonRed)
+                        .multilineTextAlignment(.center)
+                        .padding(.top, 12)
+                        .padding(.horizontal, 28)
                 }
-                Spacer()
+
+                PicartdoLegalNote()
+                    .padding(.top, 14)
+                    .padding(.horizontal, 36)
+                    .padding(.bottom, 16)
             }
+            .frame(maxWidth: .infinity)
+            .background(Color.picardoBackground.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Not Now") { dismiss() }
+                        .foregroundStyle(Color.picardoTextSecondary)
                 }
             }
         }
