@@ -44,6 +44,24 @@ struct SellArtView: View {
     @State private var selectedImage: UIImage?
     @State private var isAutofilling = false
     @State private var autofillGeneration = 0
+    @State private var confirmDiscard = false
+    @State private var formHeight: CGFloat = 0
+
+    /// Anything the artist would be sad to lose.
+    private var hasDraft: Bool {
+        selectedImage != nil
+            || ![title, caption, medium, dimensions, tags, askPrice]
+                .allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    private func cancelTapped() {
+        if hasDraft {
+            Haptics.warning()
+            confirmDiscard = true
+        } else {
+            dismiss()
+        }
+    }
 
     private let conditions = ["Mint", "Excellent", "Good", "Fair"]
     private let editions = ["Original 1/1", "Limited edition", "Open edition", "Print"]
@@ -62,20 +80,37 @@ struct SellArtView: View {
 
     var body: some View {
         VStack(spacing: 10) {
+            // Header stays put; only the form scrolls, so Cancel and List are
+            // always reachable, even with the keyboard up.
             composeHeader
+                .padding(.horizontal, 16)
             modePicker
-            photoCard
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .frame(minHeight: 168)
-            Group {
-                if mode == .post {
-                    postFields
-                } else {
-                    listingFields
+                .padding(.horizontal, 16)
+            GeometryReader { geo in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 10) {
+                        photoCard
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .frame(minHeight: 168)
+                        Group {
+                            if mode == .post {
+                                postFields
+                            } else {
+                                listingFields
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    // Always laid out at the full, keyboard-free height, so it looks exactly
+                    // as before; when the keyboard takes space, the form simply scrolls.
+                    .frame(height: max(formHeight, geo.size.height))
                 }
+                .onAppear { formHeight = max(formHeight, geo.size.height) }
+                .onChange(of: geo.size.height) { _, h in formHeight = max(formHeight, h) }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
             }
         }
-        .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -104,17 +139,30 @@ struct SellArtView: View {
             get: { !submitError.isEmpty },
             set: { if !$0 { submitError = "" } }
         )) {
-            Button("OK") { submitError = "" }
+            Button("Try Again") { submitError = ""; submit() }
+            Button("Not Now", role: .cancel) { submitError = "" }
         } message: {
-            Text(submitError)
+            Text("\(submitError)\n\nYour photo and details are still here.")
         }
     }
 
     private var composeHeader: some View {
         HStack {
-            Button("Cancel") { dismiss() }
+            Button("Cancel") { cancelTapped() }
                 .font(.system(size: 16))
                 .foregroundStyle(.primary)
+                .confirmationDialog(
+                    mode == .post ? "Discard this post?" : "Discard this listing?",
+                    isPresented: $confirmDiscard,
+                    titleVisibility: .visible
+                ) {
+                    Button("Discard", role: .destructive) { dismiss() }
+                    Button("Keep Editing", role: .cancel) {}
+                } message: {
+                    Text(selectedImage != nil
+                         ? "Your photo and details will be lost."
+                         : "What you\u{2019}ve written will be lost.")
+                }
             Spacer()
             Text(mode == .post ? "New Post" : "New Listing")
                 .font(PicardoType.wordmark(18))

@@ -176,6 +176,7 @@ struct ExploreView: View {
                         query = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
+                            .accessibilityLabel("Clear search")
                             .font(.system(size: 15))
                             .foregroundStyle(.tertiary)
                     }
@@ -351,21 +352,25 @@ struct ExploreView: View {
     private func accountRows(_ artists: [Artist]) -> some View {
         Group {
             if artists.isEmpty {
-                Text("No results found")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 40)
+                emptyLine("No accounts found")
             } else {
                 ForEach(Array(artists), id: \.username) { person in
                     InstagramAccountRow(
                         artist: person,
                         isFollowing: following.contains(person.name)
                     ) {
-                        if following.contains(person.name) {
-                            following.remove(person.name)
+                        let name = person.name
+                        if following.contains(name) {
+                            following.remove(name)
+                            Haptics.tap()
+                            PicartdoToast.show(
+                                "Unfollowed \(name)",
+                                icon: "person.badge.minus",
+                                action: .undo { following.insert(name) }
+                            )
                         } else {
-                            following.insert(person.name)
+                            following.insert(name)
+                            Haptics.soft()
                         }
                     }
                 }
@@ -528,11 +533,12 @@ struct ExploreView: View {
     }
 
     private func emptyLine(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 14))
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity)
-            .padding(.top, 40)
+        PicartdoEmptyState(
+            icon: "magnifyingglass",
+            title: text,
+            message: "Try a medium, a city, or an artist\u{2019}s name."
+        )
+        .padding(.top, 12)
     }
 }
 

@@ -20,6 +20,12 @@ struct CommissionRequestView: View {
     @State private var isSubmitting = false
     @State private var showAuth = false
     @State private var submitError = ""
+    @State private var confirmDiscard = false
+
+    private var hasDraft: Bool {
+        ![budget, description, referenceNote]
+            .allSatisfy { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
 
     let styles = ["Any style", "Realistic", "Abstract", "Impressionist",
                   "Watercolour", "Ink / Line Art", "Digital", "Mixed Media"]
@@ -212,12 +218,26 @@ struct CommissionRequestView: View {
                         .font(.system(size: 16, weight: .semibold))
                 }
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { dismiss() }
-                        .foregroundStyle(.secondary)
+                    Button("Cancel") {
+                        if hasDraft {
+                            Haptics.warning()
+                            confirmDiscard = true
+                        } else {
+                            dismiss()
+                        }
+                    }
+                    .foregroundStyle(.secondary)
+                    .confirmationDialog("Discard this request?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+                        Button("Discard", role: .destructive) { dismiss() }
+                        Button("Keep Editing", role: .cancel) {}
+                    } message: {
+                        Text("What you\u{2019}ve written for \(artist.name) will be lost.")
+                    }
                 }
             }
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .interactiveDismissDisabled(hasDraft)
             .onAppear {
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { appeared = true }
                 if name.isEmpty, let fullName = session.profile?.fullName { name = fullName }
@@ -233,9 +253,10 @@ struct CommissionRequestView: View {
                 get: { !submitError.isEmpty },
                 set: { if !$0 { submitError = "" } }
             )) {
-                Button("OK") { submitError = "" }
+                Button("Try Again") { submitError = ""; submitCommission() }
+                Button("Not Now", role: .cancel) { submitError = "" }
             } message: {
-                Text(submitError)
+                Text("\(submitError)\n\nYour request is still here.")
             }
         }
     }

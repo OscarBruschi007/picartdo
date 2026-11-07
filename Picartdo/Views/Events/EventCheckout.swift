@@ -199,9 +199,11 @@ struct ApplePayCheckoutSheet: View {
             action()
         } label: {
             Image(systemName: icon)
+                .accessibilityLabel(icon == "plus" ? "Add one ticket" : "Remove one ticket")
                 .font(.system(size: 13, weight: .bold))
                 .frame(width: 32, height: 32)
                 .background(Color(.tertiarySystemFill), in: Circle())
+                .contentShape(Rectangle().inset(by: -6)) // 44pt touch target, same look
         }
         .buttonStyle(.plain)
         .disabled(!enabled)
@@ -316,7 +318,8 @@ struct ApplePayCheckoutSheet: View {
             let approved = await authenticate()
             guard approved else {
                 phase = .review
-                errorText = "Face ID didn't go through. Try again."
+                Haptics.error()
+                errorText = "Face ID didn\u{2019}t go through. Nothing was charged. Try again when you\u{2019}re ready."
                 return
             }
             phase = .done

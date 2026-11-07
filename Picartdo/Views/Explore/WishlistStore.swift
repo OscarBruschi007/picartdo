@@ -17,7 +17,9 @@ final class WishlistStore {
         likedIDs.contains(artwork.id)
     }
 
-    func toggle(_ artwork: Artwork) {
+    /// Saves or unsaves a piece. Every change says what happened, and removing
+    /// one can be undone for a few seconds.
+    func toggle(_ artwork: Artwork, announce: Bool = true) {
         let wasLiked = likedIDs.contains(artwork.id)
         if wasLiked {
             likedIDs.remove(artwork.id)
@@ -26,6 +28,22 @@ final class WishlistStore {
         }
         save()
         Task { await syncToggle(artwork: artwork, save: !wasLiked) }
+
+        guard announce else { return }
+        if wasLiked {
+            Haptics.tap()
+            PicartdoToast.show(
+                "Removed \u{201C}\(artwork.title)\u{201D} from your saved pieces",
+                icon: "heart.slash",
+                action: .undo { [weak self] in
+                    guard let self, !self.isLiked(artwork) else { return }
+                    self.toggle(artwork, announce: false)
+                }
+            )
+        } else {
+            Haptics.soft()
+            PicartdoToast.show("Saved \u{201C}\(artwork.title)\u{201D}", icon: "heart.fill")
+        }
     }
 
     func hydrateFromServer() async {
@@ -65,13 +83,19 @@ final class WishlistStore {
                 )
             }
         } catch {
-            // revert on failure
+            // Roll back, and say so: a silent revert looks like a broken button.
             if save {
                 likedIDs.remove(artwork.id)
             } else {
                 likedIDs.insert(artwork.id)
             }
             self.save()
+            PicartdoToast.show(
+                save ? "Couldn't save that piece. Check your connection." : "Couldn't remove that piece. Check your connection.",
+                icon: "wifi.exclamationmark",
+                tone: .error,
+                action: PicartdoToast.Action(title: "Retry") { [weak self] in self?.toggle(artwork) }
+            )
         }
     }
 

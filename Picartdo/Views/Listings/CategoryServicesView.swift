@@ -40,6 +40,7 @@ struct ServiceFeaturedArtistCard: View {
                             Spacer(minLength: 0)
                             Button(action: onSave) {
                                 Image(systemName: isSaved ? "heart.fill" : "heart")
+                                    .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
                                     .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(isSaved ? Color.picardoNeonRed : .primary)
                                     .frame(width: 36, height: 36)
@@ -229,6 +230,7 @@ struct AirbnbListingCard: View {
                             Spacer(minLength: 0)
                             Button(action: onSave) {
                                 Image(systemName: isSaved ? "heart.fill" : "heart")
+                                    .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
                                     .font(.system(size: 14, weight: .semibold))
                                     .foregroundStyle(isSaved ? Color.picardoNeonRed : .primary)
                                     .frame(width: 32, height: 32)

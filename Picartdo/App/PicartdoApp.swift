@@ -21,6 +21,7 @@ struct PicartdoApp: App {
     init() {
         _ = ArtworkImageCache.shared
         ArtworkImageCache.shared.warmListedAssets()
+        ConnectivityMonitor.shared.start()
         UIWindow.appearance().backgroundColor = UIColor(named: "LaunchBackground")
             ?? UIColor(Color.picardoBackground)
     }

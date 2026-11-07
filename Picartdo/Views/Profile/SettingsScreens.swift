@@ -95,7 +95,7 @@ struct SettingsToggleRow: View {
     var body: some View {
         Toggle(isOn: Binding(
             get: { isOn },
-            set: { isOn = $0; onChange() }
+            set: { isOn = $0; Haptics.select(); onChange() }
         )) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -501,9 +501,13 @@ struct BlockedAccountsView: View {
         SettingsChrome(title: "Blocked accounts") {
             VStack(alignment: .leading, spacing: 16) {
                 if settings.blocked.isEmpty {
-                    Text("You haven’t blocked anyone.")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
+                    PicartdoEmptyState(
+                        icon: "hand.raised",
+                        title: "You haven\u{2019}t blocked anyone",
+                        message: "People you block can\u{2019}t see your profile or message you.",
+                    primary: .primary,
+                    secondary: .secondary
+                    )
                 } else {
                     SettingsCard {
                         ForEach(Array(settings.blocked.enumerated()), id: \.element.id) { index, user in
@@ -520,7 +524,13 @@ struct BlockedAccountsView: View {
                                 Button("Unblock") {
                                     settings.unblock(user)
                                     Haptics.select()
+                                    PicartdoToast.show(
+                                        "Unblocked @\(user.handle)",
+                                        icon: "person.crop.circle.badge.checkmark",
+                                        action: .undo { settings.block(name: user.name, handle: user.handle) }
+                                    )
                                 }
+                                .frame(minHeight: 44)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(Color.picardoGold)
                             }
@@ -534,7 +544,15 @@ struct BlockedAccountsView: View {
                     ForEach(candidates.prefix(20), id: \.username) { artist in
                         Button(artist.name) {
                             settings.block(name: artist.name, handle: artist.username)
-                            Haptics.success()
+                            PicartdoToast.show(
+                                "Blocked @\(artist.username). They can\u{2019}t see your profile or message you.",
+                                icon: "hand.raised.fill",
+                                action: .undo {
+                                    if let user = settings.blocked.first(where: { $0.handle == artist.username }) {
+                                        settings.unblock(user)
+                                    }
+                                }
+                            )
                         }
                     }
                 } label: {
@@ -732,9 +750,19 @@ struct PaymentsSettingsView: View {
                                 }
                                 Spacer()
                                 Button("Remove") {
+                                    let before = settings.cards
                                     settings.removeCard(card)
                                     Haptics.select()
+                                    PicartdoToast.show(
+                                        "Removed \(card.label)",
+                                        icon: "creditcard",
+                                        action: .undo {
+                                            settings.cards = before
+                                            settings.save()
+                                        }
+                                    )
                                 }
+                                .frame(minHeight: 44)
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(Color.picardoNeonRed)
                             }
@@ -813,6 +841,7 @@ struct PayoutsSettingsView: View {
 }
 
 struct OrdersSettingsView: View {
+    @State private var orderToCancel: SettingsStore.ShopOrder?
     @Environment(SettingsStore.self) private var settings
 
     var body: some View {
@@ -844,12 +873,33 @@ struct OrdersSettingsView: View {
                         if order.status == .processing {
                             SettingsDivider()
                             Button("Cancel order") {
-                                settings.cancelOrder(order)
-                                Haptics.select()
+                                Haptics.warning()
+                                orderToCancel = order
                             }
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.picardoNeonRed)
                             .padding(14)
+                            .confirmationDialog(
+                                "Cancel this order?",
+                                isPresented: Binding(
+                                    get: { orderToCancel?.id == order.id },
+                                    set: { if !$0 { orderToCancel = nil } }
+                                ),
+                                titleVisibility: .visible
+                            ) {
+                                Button("Cancel Order", role: .destructive) {
+                                    settings.cancelOrder(order)
+                                    orderToCancel = nil
+                                    PicartdoToast.show(
+                                        "Order cancelled. Any payment will be refunded to your card.",
+                                        icon: "checkmark.circle",
+                                        tone: .success
+                                    )
+                                }
+                                Button("Keep Order", role: .cancel) { orderToCancel = nil }
+                            } message: {
+                                Text("The artist will be told, and this can\u{2019}t be undone.")
+                            }
                         }
                     }
                 }
@@ -886,9 +936,19 @@ struct ShippingSettingsView: View {
                             }
                             Spacer()
                             Button("Remove") {
+                                let before = settings.addresses
                                 settings.removeAddress(address)
                                 Haptics.select()
+                                PicartdoToast.show(
+                                    "Removed \(address.label) address",
+                                    icon: "mappin.slash",
+                                    action: .undo {
+                                        settings.addresses = before
+                                        settings.save()
+                                    }
+                                )
                             }
+                            .frame(minHeight: 44)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color.picardoNeonRed)
                         }
@@ -956,10 +1016,13 @@ struct SavedSettingsView: View {
     var body: some View {
         SettingsChrome(title: "Saved") {
             if items.isEmpty {
-                Text("Pieces you save will live here.")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                PicartdoEmptyState(
+                    icon: "heart",
+                    title: "Nothing saved yet",
+                    message: "Tap the heart on any piece you love and it will live here.",
+                    primary: .primary,
+                    secondary: .secondary
+                )
             } else {
                 LazyVStack(spacing: 12) {
                     ForEach(items) { art in
@@ -980,6 +1043,7 @@ struct SavedSettingsView: View {
                                 wishlist.toggle(art)
                             } label: {
                                 Image(systemName: "bookmark.fill")
+                                    .accessibilityLabel("Remove \(art.title) from saved")
                                     .foregroundStyle(Color.picardoGold)
                             }
                             .buttonStyle(.plain)

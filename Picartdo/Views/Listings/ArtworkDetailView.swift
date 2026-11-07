@@ -277,6 +277,7 @@ private struct AmexPlatinumLogo: View {
 // MARK: - Floating Card
 
 struct FloatingPaymentCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let network: CardNetwork
     @State private var tilt: Double = -6
     @State private var floatY: CGFloat = 0
@@ -307,6 +308,8 @@ struct FloatingPaymentCard: View {
                 .shadow(color: .black.opacity(0.3), radius: 16, x: 0, y: 8)
         }
         .onAppear {
+            // A floating card is decoration; hold it still when Reduce Motion is on.
+            guard !reduceMotion else { return }
             withAnimation(.easeInOut(duration: 2.8).repeatForever(autoreverses: true)) {
                 tilt = 6; floatY = -8
             }
@@ -430,6 +433,7 @@ private enum ApplePayAuthPhase {
 }
 
 struct ApplePayAuthOverlay: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let title: String
     let amount: String
     var onCancel: () -> Void
@@ -588,8 +592,10 @@ struct ApplePayAuthOverlay: View {
             islandWidth = 196
             islandHeight = 52
         }
-        withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
-            scanSpin = 360
+        if !reduceMotion {
+            withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+                scanSpin = 360
+            }
         }
 
         let ok = await requestFaceID()
@@ -597,6 +603,11 @@ struct ApplePayAuthOverlay: View {
 
         if !ok {
             cancel()
+            PicartdoToast.show(
+                "Face ID didn't go through. Nothing was charged.",
+                icon: "faceid",
+                tone: .error
+            )
             return
         }
 
@@ -655,6 +666,7 @@ struct ApplePayAuthOverlay: View {
 // MARK: - Purchase Burst Animation
 
 struct PurchaseBurstView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let title: String
     let onDone: () -> Void
     @State private var checkScale:  CGFloat = 0.3
@@ -728,8 +740,12 @@ struct PurchaseBurstView: View {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.58).delay(0.1)) {
                 checkScale = 1; checkOpacity = 1
             }
-            withAnimation(.easeOut(duration: 1.4).delay(0.15).repeatForever(autoreverses: false)) {
-                r1Scale = 2.2; r2Scale = 2.2; r3Scale = 2.2; rOpacity = 0
+            if reduceMotion {
+                rOpacity = 0
+            } else {
+                withAnimation(.easeOut(duration: 1.4).delay(0.15).repeatForever(autoreverses: false)) {
+                    r1Scale = 2.2; r2Scale = 2.2; r3Scale = 2.2; rOpacity = 0
+                }
             }
             withAnimation(.easeOut(duration: 0.5).delay(0.4)) {
                 textOpacity = 1
@@ -798,13 +814,20 @@ struct BuyConfirmationSheet: View {
         .sheet(isPresented: $showSafari) {
             if let safariURL { SafariSheet(url: safariURL) }
         }
-        .alert("Payment Error", isPresented: .init(
+        .alert("Payment didn\u{2019}t go through", isPresented: .init(
             get: { paymentError != nil },
             set: { if !$0 { paymentError = nil } }
         )) {
-            Button("OK") { paymentError = nil }
+            Button("Try Again") {
+                paymentError = nil
+                Task { await processPayment(useCheckout: true) }
+            }
+            Button("Not Now", role: .cancel) { paymentError = nil }
         } message: {
-            Text(paymentError ?? "")
+            Text("\(paymentError ?? "Something went wrong.")\n\nNothing was charged, and your details are still here.")
+        }
+        .onChange(of: paymentError) { _, error in
+            if error != nil { Haptics.error() }
         }
         .overlay {
             if showApplePayAuth {
@@ -1092,7 +1115,9 @@ struct BuyConfirmationSheet: View {
                 paymentError = response.error ?? "Payment could not be completed."
             }
         } catch {
-            paymentError = error.localizedDescription
+            paymentError = (error as? URLError) != nil
+                ? "You seem to be offline. Check your connection."
+                : error.localizedDescription
         }
     }
 

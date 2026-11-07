@@ -170,6 +170,7 @@ struct SearchView: View {
             if !query.isEmpty {
                 Button { query = ""; isSearching = false; focused = false } label: {
                     Image(systemName: "xmark.circle.fill")
+                        .accessibilityLabel("Clear search")
                         .foregroundStyle(Color.picardoTextSecondary).font(.system(size: 16))
                 }
                 .padding(.trailing, 10)
@@ -293,6 +294,7 @@ struct ListingCard: View {
                                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { isSaved.toggle() }
                             } label: {
                                 Image(systemName: isSaved ? "heart.fill" : "heart")
+                                    .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundStyle(isSaved ? Color.picardoGold : .primary)
                                     .frame(width: 36, height: 36)

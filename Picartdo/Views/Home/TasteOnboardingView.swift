@@ -13,6 +13,7 @@ struct TasteOnboardingView: View {
     @State private var step: Step = .canvas
     @State private var forward = true
     @State private var role: PicartdoRole?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var mediums: Set<ArtCategory> = []
     @State private var goals: Set<ArtistGoal> = []
     @State private var budget: CollectorBudget?
@@ -40,7 +41,7 @@ struct TasteOnboardingView: View {
                 ZStack {
                     content
                         .id(step)
-                        .transition(.asymmetric(
+                        .transition(reduceMotion ? .opacity : .asymmetric(
                             insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
                             removal: .move(edge: forward ? .leading : .trailing).combined(with: .opacity)
                         ))
@@ -63,6 +64,7 @@ struct TasteOnboardingView: View {
         HStack {
             Button(action: goBack) {
                 Image(systemName: "chevron.left")
+                    .accessibilityLabel("Back")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(Color.picardoText)
                     .frame(width: 40, height: 40)

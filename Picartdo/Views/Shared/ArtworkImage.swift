@@ -56,10 +56,19 @@ struct ArtworkImage: View {
             if loaded == nil, let peek = ArtworkImageCache.shared.peek(source, maxDimension: maxDimension) {
                 loaded = peek
             }
-            if let image = await ArtworkImageCache.shared.image(for: source, maxDimension: maxDimension) {
-                if loaded !== image {
-                    loaded = image
-                }
+            var image = await ArtworkImageCache.shared.image(for: source, maxDimension: maxDimension)
+            if image == nil, !Task.isCancelled {
+                // One quiet retry for a flaky connection before settling on the placeholder.
+                try? await Task.sleep(for: .seconds(1.5))
+                guard !Task.isCancelled else { return }
+                image = await ArtworkImageCache.shared.image(for: source, maxDimension: maxDimension)
+            }
+            guard let image, loaded !== image else { return }
+            if loaded == nil {
+                // Arrived from disk or network: dissolve in instead of popping.
+                withAnimation(.easeOut(duration: 0.25)) { loaded = image }
+            } else {
+                loaded = image
             }
         }
     }

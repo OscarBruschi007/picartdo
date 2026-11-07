@@ -307,10 +307,21 @@ struct DirectMessagesView: View {
             titleVisibility: .visible
         ) {
             Button("Delete", role: .destructive) {
-                if let id = pendingDelete?.id {
+                if let convo = pendingDelete,
+                   let index = conversations.firstIndex(where: { $0.id == convo.id }) {
                     withAnimation(listAnimation) {
-                        conversations.removeAll { $0.id == id }
+                        _ = conversations.remove(at: index)
                     }
+                    PicartdoToast.show(
+                        "Conversation with \(convo.fullName) deleted",
+                        icon: "trash",
+                        action: .undo {
+                            guard !conversations.contains(where: { $0.id == convo.id }) else { return }
+                            withAnimation(listAnimation) {
+                                conversations.insert(convo, at: min(index, conversations.count))
+                            }
+                        }
+                    )
                 }
                 pendingDelete = nil
             }
@@ -480,11 +491,14 @@ struct DirectMessagesView: View {
     private var conversationList: some View {
         List {
             if filtered.isEmpty {
-                Text(emptyLine)
-                    .font(.system(size: 14))
-                    .foregroundStyle(theme.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 48)
+                PicartdoEmptyState(
+                    icon: emptyIcon,
+                    title: emptyLine,
+                    message: emptyHint,
+                    primary: theme.text,
+                    secondary: theme.secondary
+                )
+                .padding(.top, 24)
                     .listRowBackground(Color.clear)
                     .listRowSeparator(.hidden)
             } else {
@@ -546,7 +560,26 @@ struct DirectMessagesView: View {
         }
     }
 
+    private var emptyIcon: String {
+        if !searchText.isEmpty { return "magnifyingglass" }
+        switch inboxLane {
+        case .messages: return "bubble.left.and.bubble.right"
+        case .marketplace: return "bag"
+        case .requests: return "tray"
+        }
+    }
+
+    private var emptyHint: String {
+        if !searchText.isEmpty { return "Try another name or word." }
+        switch inboxLane {
+        case .messages: return "Artists love questions. Start with one from any piece you like."
+        case .marketplace: return "Questions about pieces you buy or sell will show up here."
+        case .requests: return "Messages from people you don\u{2019}t follow wait here until you accept."
+        }
+    }
+
     private var emptyLine: String {
+        if !searchText.isEmpty { return "No conversations match" }
         switch inboxLane {
         case .messages: return "No messages yet"
         case .marketplace: return "No marketplace messages yet"

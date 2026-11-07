@@ -76,6 +76,7 @@ struct ArtworkCard: View {
         if let onSave {
             Button(action: onSave) {
                 Image(systemName: isSaved ? "bookmark.fill" : "bookmark")
+                    .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
                     .font(.system(size: size, weight: .medium))
                     .foregroundStyle(isSaved ? Color.picardoGold : (filled ? Color(white: 0.4) : Color(.secondaryLabel)))
             }
@@ -245,6 +246,7 @@ struct ArtworkCard: View {
                     onSave?()
                 } label: {
                     Image(systemName: isSaved ? "heart.fill" : "heart")
+                        .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(isSaved ? .red : .primary)
                         .frame(width: 30, height: 30)

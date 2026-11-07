@@ -1642,6 +1642,8 @@ struct PostCard: View {
                         }
                     } else {
                         withAnimation { isFollowing = true }
+                        Haptics.success()
+                        PicartdoToast.show("\(firstName) is now one of your muses", icon: "person.badge.plus")
                     }
                 } label: {
                     Label(isFollowing ? "Release Muse" : "Muse \(firstName)",
@@ -1660,6 +1662,11 @@ struct PostCard: View {
             .confirmationDialog("Release this muse?", isPresented: $confirmRelease, titleVisibility: .visible) {
                 Button("Release", role: .destructive) {
                     withAnimation { isFollowing = false }
+                    PicartdoToast.show(
+                        "Released \(firstName)",
+                        icon: "person.badge.minus",
+                        action: .undo { withAnimation { isFollowing = true } }
+                    )
                 }
                 Button("Keep", role: .cancel) {}
             }
@@ -1778,6 +1785,8 @@ struct PostCard: View {
                         }
                     } else {
                         withAnimation { isFollowing = true }
+                        Haptics.success()
+                        PicartdoToast.show("\(firstName) is now one of your muses", icon: "person.badge.plus")
                     }
                 } label: {
                     Label(isFollowing ? "Release Muse" : "Muse \(firstName)",
@@ -1796,6 +1805,11 @@ struct PostCard: View {
             .confirmationDialog("Release this muse?", isPresented: $confirmRelease, titleVisibility: .visible) {
                 Button("Release", role: .destructive) {
                     withAnimation { isFollowing = false }
+                    PicartdoToast.show(
+                        "Released \(firstName)",
+                        icon: "person.badge.minus",
+                        action: .undo { withAnimation { isFollowing = true } }
+                    )
                 }
                 Button("Keep", role: .cancel) {}
             }
