@@ -125,27 +125,103 @@ struct HomeShelf<Content: View>: View {
 
 // MARK: - Header
 
-/// Date and city over the wordmark, with Picasso on the trailing edge.
+/// The top bar: Picasso on the left, the name centred with today's date beneath it,
+/// messages on the right with an unread badge.
 struct HomeHeader<Wordmark: View>: View {
-    let city: String
+    var unreadMessages: Int
+    var onMessages: () -> Void
     @ViewBuilder var wordmark: Wordmark
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("\(Date().formatted(.dateTime.weekday(.wide).month(.wide).day())) \u{00B7} \(city)")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
-                .kerning(0.6)
-                .foregroundStyle(Color.picardoTextSecondary)
-                .accessibilityLabel("\(Date().formatted(date: .complete, time: .omitted)), \(city)")
-
-            HStack(alignment: .center) {
+        ZStack {
+            VStack(spacing: 2) {
                 wordmark
-                Spacer(minLength: 12)
+                Text(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .accessibilityLabel(Date().formatted(date: .complete, time: .omitted))
+            }
+
+            HStack {
                 PicassoButton(inline: true)
+                Spacer()
+                Button {
+                    Haptics.tap()
+                    onMessages()
+                } label: {
+                    Image(systemName: "paperplane")
+                        .font(.system(size: 21, weight: .medium))
+                        .foregroundStyle(Color.picardoText)
+                        .frame(width: 44, height: 44)
+                        .overlay(alignment: .topTrailing) {
+                            if unreadMessages > 0 {
+                                Text("\(min(unreadMessages, 9))")
+                                    .font(.caption2.weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .frame(minWidth: 18, minHeight: 18)
+                                    .background(Circle().fill(Color.picardoNeonRed))
+                                    .overlay(Circle().strokeBorder(Color.picardoBackground, lineWidth: 2))
+                                    .offset(x: 2, y: 2)
+                            }
+                        }
+                }
+                .buttonStyle(PicardoPressStyle())
+                .accessibilityLabel("Messages")
+                .accessibilityValue(unreadMessages > 0 ? "\(unreadMessages) unread" : "")
             }
         }
-        .padding(.horizontal, HomeLayout.margin)
+        .padding(.horizontal, HomeLayout.margin - 4)
+    }
+}
+
+// MARK: - Feed tabs
+
+enum HomeFeedTab: String, CaseIterable, Identifiable {
+    case forYou = "For you"
+    case following = "Following"
+    var id: Self { self }
+}
+
+/// Two tabs with a sliding underline. Pinned under the status bar while you scroll.
+struct HomeFeedTabs: View {
+    @Binding var selection: HomeFeedTab
+    @Namespace private var underline
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(HomeFeedTab.allCases) { tab in
+                let on = selection == tab
+                Button {
+                    guard !on else { return }
+                    Haptics.select()
+                    withAnimation(PicardoMotion.quick) { selection = tab }
+                } label: {
+                    VStack(spacing: 10) {
+                        Text(tab.rawValue)
+                            .font(.subheadline.weight(on ? .bold : .medium))
+                            .foregroundStyle(on ? Color.picardoText : Color.picardoTextSecondary)
+                        ZStack {
+                            Capsule().fill(.clear).frame(height: 4)
+                            if on {
+                                Capsule()
+                                    .fill(Color.picardoNeonRed)
+                                    .frame(width: 56, height: 4)
+                                    .matchedGeometryEffect(id: "underline", in: underline)
+                            }
+                        }
+                    }
+                    .padding(.top, 12)
+                    .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? [.isSelected, .isButton] : .isButton)
+            }
+        }
+        .background(alignment: .bottom) {
+            Rectangle().fill(Color.picardoBorder).frame(height: 0.5)
+        }
+        .background(.bar)
     }
 }
 
@@ -242,7 +318,7 @@ struct HomeStoryAvatar<Photo: View>: View {
     let ring: Ring
     @ViewBuilder var photo: Photo
 
-    private static var size: CGFloat { 64 }
+    private static var size: CGFloat { 68 }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -253,7 +329,22 @@ struct HomeStoryAvatar<Photo: View>: View {
                 .padding(4)
                 .overlay {
                     switch ring {
-                    case .unseen: Circle().strokeBorder(Color.picardoNeonRed, lineWidth: 2)
+                    case .unseen:
+                        Circle().strokeBorder(
+                            AngularGradient(
+                                colors: [
+                                    Color(red: 0.98, green: 0.76, blue: 0.24),
+                                    Color.picardoNeonRed,
+                                    Color(red: 0.62, green: 0.18, blue: 0.62),
+                                    Color.picardoNeonRed,
+                                    Color(red: 0.98, green: 0.76, blue: 0.24),
+                                ],
+                                center: .center,
+                                startAngle: .degrees(90),
+                                endAngle: .degrees(450)
+                            ),
+                            lineWidth: 2.5
+                        )
                     case .seen:   Circle().strokeBorder(Color.picardoBorder, lineWidth: 1)
                     case .none:   EmptyView()
                     }

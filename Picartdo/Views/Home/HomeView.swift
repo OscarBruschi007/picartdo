@@ -397,6 +397,8 @@ struct HomeView: View {
     @State private var identity = ProfileIdentity.load()
     @State private var hiddenPosts: Set<String> = HiddenPosts.load()
     @State private var refreshCount = 0
+    @State private var feedTab: HomeFeedTab = .forYou
+    @State private var showMessages = false
     @Namespace private var zoom
 
     private var featured: Artwork { homeFeed.featured }
@@ -446,10 +448,10 @@ struct HomeView: View {
                     .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: HomeLayout.sectionGap) {
+                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
 
-                        // Greet: where and when, the wordmark, Picasso.
-                        HomeHeader(city: city) {
+                        // The top bar: Picasso, the name and date, messages.
+                        HomeHeader(unreadMessages: unreadMessages, onMessages: { showMessages = true }) {
                             // The splash wordmark lands on this exact spot; tap it to step the era.
                             PicardoBrandWordmark(size: 24, tracking: 2.5)
                                 .opacity(splashBridge?.hidesHomeWordmark == true ? 0 : 1)
@@ -464,51 +466,33 @@ struct HomeView: View {
                                 }
                                 .accessibilityAddTraits(.isHeader)
                         }
-                        .padding(.top, 8)
-                        .padding(.bottom, -HomeLayout.sectionGap + HomeLayout.headerGap)
+                        .padding(.top, 4)
 
-                        // Connect: the people you follow.
+                        // Stories from the people you follow.
                         HomeStoriesRow(artists: storyArtists, identity: identity) {
                             showSellSheet = true
                         }
+                        .padding(.top, 14)
+                        .padding(.bottom, 8)
 
-                        // Inspire: one big moment.
-                        VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
-                            HomeSectionHeader(title: "Tonight\u{2019}s piece", reason: "Five works, chosen for this evening")
-                            HomeFeaturedCarousel(artworks: heroArtworks) { buyArtwork = $0 }
-                        }
-
-                        // Personalize: the marketplace, picked for you.
-                        HomeForYouShelf(
-                            role: taste.role,
-                            mediums: taste.favoriteMediums,
-                            budget: taste.budget,
-                            picks: shelfPicks
-                        )
-
-                        // Connect: what the people you follow are making.
-                        if !followingPosts.isEmpty {
-                            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
-                                HomeSectionHeader(title: "From people you follow", reason: "New work and studio moments")
-                                VStack(spacing: HomeLayout.sectionGap) {
-                                    ForEach(followingPosts) { post in
-                                        HomePostCard(post: post) { hide(post) }
-                                            .transition(.opacity)
-                                    }
+                        Section {
+                            Group {
+                                switch feedTab {
+                                case .forYou:
+                                    forYouFeed(shelfPicks)
+                                case .following:
+                                    followingFeed
                                 }
-                                .padding(.horizontal, HomeLayout.margin)
                             }
+                            .padding(.top, 20)
+                            .transition(.opacity)
+                        } header: {
+                            HomeFeedTabs(selection: $feedTab)
                         }
-
-                        HomeStudioVisit(feature: homeFeed.artistOfTheWeek)
-
-                        // Explore: out into the city, reading, and everything else.
-                        HomeEventsShelf(events: cityEvents, city: city)
-                        HomeReadingList(articles: featuredArticles)
-                        HomeDiscoverGrid(artworks: discoverArtworks(excluding: shelfPicks))
                     }
                     .padding(.bottom, 110)
                     .animation(PicardoMotion.transition, value: hiddenPosts)
+                    .animation(PicardoMotion.quick, value: feedTab)
                 }
                 .scrollIndicators(.hidden)
                 .scrollEdgeEffectStyle(.soft, for: .top)
@@ -559,11 +543,82 @@ struct HomeView: View {
                 BuyConfirmationSheet(artwork: artwork)
                     .presentationBackground(Color.picardoBackground)
             }
+            .fullScreenCover(isPresented: $showMessages) {
+                DirectMessagesView(isPresented: $showMessages)
+                    .presentationBackground(.clear)
+            }
             .onChange(of: homeRootTick) { _, _ in
                 guard !path.isEmpty else { return }
                 path = NavigationPath()
             }
         }
+    }
+
+    /// For you: the curated front page.
+    private func forYouFeed(_ shelfPicks: [Artwork]) -> some View {
+        VStack(alignment: .leading, spacing: HomeLayout.sectionGap) {
+            // Inspire: one big moment.
+            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                HomeSectionHeader(title: "Tonight\u{2019}s piece", reason: "Five works, chosen for this evening")
+                HomeFeaturedCarousel(artworks: heroArtworks) { buyArtwork = $0 }
+            }
+
+            // Personalize: the marketplace, picked for you.
+            HomeForYouShelf(
+                role: taste.role,
+                mediums: taste.favoriteMediums,
+                budget: taste.budget,
+                picks: shelfPicks
+            )
+
+            // Connect: what the people you follow are making.
+            if !followingPosts.isEmpty {
+                VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                    HomeSectionHeader(title: "From people you follow", reason: "New work and studio moments")
+                    VStack(spacing: HomeLayout.sectionGap) {
+                        ForEach(followingPosts) { post in
+                            HomePostCard(post: post) { hide(post) }
+                                .transition(.opacity)
+                        }
+                    }
+                    .padding(.horizontal, HomeLayout.margin)
+                }
+            }
+
+            HomeStudioVisit(feature: homeFeed.artistOfTheWeek)
+
+            // Explore: out into the city, reading, and everything else.
+            HomeEventsShelf(events: cityEvents, city: city)
+            HomeReadingList(articles: featuredArticles)
+            HomeDiscoverGrid(artworks: discoverArtworks(excluding: shelfPicks))
+        }
+    }
+
+    /// Following: everything the people you follow have posted.
+    private var followingFeed: some View {
+        LazyVStack(spacing: HomeLayout.sectionGap) {
+            ForEach(allFollowingPosts) { post in
+                HomePostCard(post: post) { hide(post) }
+                    .transition(.opacity)
+            }
+        }
+        .padding(.horizontal, HomeLayout.margin)
+    }
+
+    /// Photos and studio videos, interleaved.
+    private var allFollowingPosts: [ArtistPost] {
+        let photos = ArtistPost.samples
+        let videos = homeFeed.studioVideos
+        var mixed: [ArtistPost] = []
+        for i in 0..<max(photos.count, videos.count) {
+            if i < photos.count { mixed.append(photos[i]) }
+            if i < videos.count { mixed.append(videos[i]) }
+        }
+        return mixed.filter { !hiddenPosts.contains($0.feedKey) }
+    }
+
+    private var unreadMessages: Int {
+        DMConversation.samples.reduce(0) { $0 + $1.unreadCount }
     }
 
     /// "Not for me" hides the post here and remembers it on this device.
