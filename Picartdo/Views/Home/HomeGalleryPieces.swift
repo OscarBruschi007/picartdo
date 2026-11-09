@@ -50,8 +50,8 @@ struct HomeSectionHeader<Accessory: View>: View {
     @ViewBuilder var accessory: Accessory
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
+        VStack(spacing: 2) {
+            VStack(spacing: 2) {
                 Text(title)
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.picardoText)
@@ -62,11 +62,12 @@ struct HomeSectionHeader<Accessory: View>: View {
                         .lineLimit(2)
                 }
             }
+            .multilineTextAlignment(.center)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 8)
             accessory
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, HomeLayout.margin)
     }
 }
@@ -91,7 +92,7 @@ struct HomeSeeAll<Value: Hashable>: View {
             }
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Color.picardoNeonRed)
-            .frame(minHeight: 44)
+            .frame(minHeight: 32)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -828,7 +829,7 @@ private struct HomeEventTile: View {
 // MARK: - News
 
 /// The one part of Home set like a news app: a masthead with the name and today's date,
-/// then stories as cards (source, headline, byline, image on the right).
+/// a lead story card with more stories inside it, then single story cards.
 struct HomeReadingList: View {
     let articles: [HomeArticle]
 
@@ -837,14 +838,15 @@ struct HomeReadingList: View {
     }
 
     var body: some View {
-        if !articles.isEmpty {
-            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+        if let lead = articles.first {
+            VStack(spacing: HomeLayout.headerGap) {
                 masthead
 
                 VStack(spacing: HomeLayout.itemGap) {
-                    ForEach(articles.prefix(3)) { article in
+                    leadCard(lead, more: Array(articles.dropFirst().prefix(2)))
+                    ForEach(articles.dropFirst(3).prefix(2)) { article in
                         NavigationLink(value: article) {
-                            card(article)
+                            storyCard(article)
                         }
                         .buttonStyle(.plain)
                     }
@@ -855,63 +857,112 @@ struct HomeReadingList: View {
     }
 
     private var masthead: some View {
-        HStack(alignment: .lastTextBaseline) {
-            VStack(alignment: .leading, spacing: 0) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("Picartdo")
-                        .font(.system(.title, design: .serif).weight(.black))
-                    Text("News")
-                        .font(.title.weight(.bold))
-                }
-                .foregroundStyle(Color.picardoText)
-                Text(Date().formatted(.dateTime.month(.wide).day()))
+        VStack(spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("Picartdo")
+                    .font(.system(.title, design: .serif).weight(.black))
+                Text("News")
                     .font(.title.weight(.bold))
-                    .foregroundStyle(Color.picardoTextSecondary)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
-
-            Spacer(minLength: 8)
+            .foregroundStyle(Color.picardoText)
+            Text(Date().formatted(.dateTime.month(.wide).day()))
+                .font(.title.weight(.bold))
+                .foregroundStyle(Color.picardoTextSecondary)
             HomeSeeAll(value: HomeArticlesList())
         }
+        .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .contain)
         .padding(.horizontal, HomeLayout.margin)
     }
 
-    private func card(_ article: HomeArticle) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: "text.book.closed")
-                        .font(.footnote.weight(.semibold))
-                    Text(article.kicker)
-                        .font(.subheadline.weight(.semibold))
-                        .lineLimit(1)
-                }
-                .foregroundStyle(Color.picardoText)
+    private func source(_ article: HomeArticle) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "building.columns.fill")
+                .font(.footnote)
+            Text(article.kicker)
+                .font(.subheadline.weight(.bold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.picardoText)
+    }
 
-                Text(article.title)
+    private func byline(_ article: HomeArticle) -> some View {
+        Text("\(article.author) \u{00B7} \(article.readTime) read")
+            .font(.footnote)
+            .foregroundStyle(Color.picardoTextSecondary)
+            .lineLimit(1)
+    }
+
+    /// Top story: a big headline, then "More stories" listed inside the same card.
+    private func leadCard(_ lead: HomeArticle, more: [HomeArticle]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            NavigationLink(value: lead) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Top Story")
+                        .font(.caption.weight(.bold))
+                        .textCase(.uppercase)
+                        .kerning(0.6)
+                        .foregroundStyle(Color.picardoNeonRed)
+                    source(lead)
+                    Text(lead.title)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(Color.picardoText)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    byline(lead)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(16)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if !more.isEmpty {
+                Divider().padding(.horizontal, 16)
+                Text("More Stories")
                     .font(.headline)
                     .foregroundStyle(Color.picardoText)
-                    .multilineTextAlignment(.leading)
-                    .lineLimit(3)
-
-                Text("\(article.author) \u{00B7} \(article.readTime) read")
-                    .font(.footnote)
-                    .foregroundStyle(Color.picardoTextSecondary)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            if !article.imageName.isEmpty {
-                Color.picardoBackground
-                    .frame(width: 96, height: 96)
-                    .overlay {
-                        ArtworkImage(imageName: article.imageName, contentMode: .fill, maxDimension: 300)
-                            .allowsHitTesting(false)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 14)
+                ForEach(Array(more.enumerated()), id: \.element.id) { i, article in
+                    if i > 0 { Divider().padding(.leading, 16 + 28) }
+                    NavigationLink(value: article) {
+                        HStack(alignment: .top, spacing: 10) {
+                            Image(systemName: "building.columns.fill")
+                                .font(.footnote)
+                                .foregroundStyle(Color.picardoText)
+                                .frame(width: 18, height: 20)
+                            Text(article.title)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.picardoText)
+                                .multilineTextAlignment(.leading)
+                                .lineLimit(2)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .contentShape(Rectangle())
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: HomeLayout.thumbRadius, style: .continuous))
+                    .buttonStyle(.plain)
+                }
+                .padding(.bottom, 4)
             }
         }
+        .background(Color.picardoCard)
+        .clipShape(cardShape)
+    }
+
+    private func storyCard(_ article: HomeArticle) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            source(article)
+            Text(article.title)
+                .font(.headline)
+                .foregroundStyle(Color.picardoText)
+                .multilineTextAlignment(.leading)
+                .lineLimit(3)
+            byline(article)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(Color.picardoCard)
         .clipShape(cardShape)

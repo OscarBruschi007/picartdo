@@ -37,7 +37,7 @@ final class HomeFeedStore {
         storyArtists = Self.storyCast
         moreListings = []
         studioVideos = ArtistPost.studioVideos
-        articles = Array(HomeArticle.samples.prefix(4))
+        articles = Array(HomeArticle.samples.prefix(5))
         cityEvents = Array(ArtEventItem.samples.prefix(3))
         layout = HomeLayoutBlock.allCases
         artistOfTheWeek = ArtistOfTheWeekFeature.current
@@ -68,7 +68,7 @@ final class HomeFeedStore {
         moreListings = rest
         studioVideos = ArtistPost.studioVideos.shuffled()
         storyArtists = Self.storyCast
-        articles = Array(HomeArticle.samples.shuffled().prefix(4))
+        articles = Array(HomeArticle.samples.shuffled().prefix(5))
         cityEvents = Self.homeEventPicks()
         layout = shuffledLayout()
         artistOfTheWeek = pickArtistOfTheWeek()
