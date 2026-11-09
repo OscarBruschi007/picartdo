@@ -39,7 +39,7 @@ struct SplashScreenView: View {
 
     private static let lastOpenKey = "picardo.splash.lastOpenAt"
     /// Home header size; the splash sets the same wordmark larger and lands it at this size.
-    private static let homeWordmarkSize: CGFloat = 32
+    private static let homeWordmarkSize: CGFloat = 24
     private static let homeTracking: CGFloat = 2.5
 
     // Motion language: one family of curves, used everywhere.

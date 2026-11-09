@@ -449,9 +449,9 @@ struct HomeView: View {
                     VStack(alignment: .leading, spacing: HomeLayout.sectionGap) {
 
                         // Greet: where and when, the wordmark, Picasso.
-                        HomeHeader {
+                        HomeHeader(city: city) {
                             // The splash wordmark lands on this exact spot; tap it to step the era.
-                            PicardoBrandWordmark(size: 32, tracking: 2.5)
+                            PicardoBrandWordmark(size: 24, tracking: 2.5)
                                 .opacity(splashBridge?.hidesHomeWordmark == true ? 0 : 1)
                                 .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
                                     splashBridge?.reportWordmarkFrame(frame)
@@ -534,10 +534,6 @@ struct HomeView: View {
             }
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
-            }
-            .navigationDestination(for: ArtCategory.self) { category in
-                CategoryFeedView(category: category)
-                    .picardoPushedScreen()
             }
             .navigationDestination(for: HomeArticle.self) { article in
                 HomeArticleDetailView(article: article)
