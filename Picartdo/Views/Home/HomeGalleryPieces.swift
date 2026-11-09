@@ -46,24 +46,17 @@ extension View {
 /// The one header every Home section uses: a quiet title, a short "why", an optional "See all".
 struct HomeSectionHeader<Accessory: View>: View {
     let title: String
+    /// Kept for VoiceOver; the visible header is the title alone, News-style.
     var reason: String? = nil
     @ViewBuilder var accessory: Accessory
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.picardoText)
-                if let reason {
-                    Text(reason)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.picardoTextSecondary)
-                        .lineLimit(2)
-                }
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityAddTraits(.isHeader)
+            Text(title)
+                .font(.title.weight(.bold))
+                .foregroundStyle(Color.picardoNeonRed)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityHint(reason ?? "")
             Spacer(minLength: 8)
             accessory
         }
@@ -125,27 +118,45 @@ struct HomeShelf<Content: View>: View {
 
 // MARK: - Header
 
-/// Date and city over the wordmark, with Picasso on the trailing edge.
+/// The app's name, today's date set large beneath it, and the mediums as chips.
 struct HomeHeader<Wordmark: View>: View {
-    let city: String
     @ViewBuilder var wordmark: Wordmark
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("\(Date().formatted(.dateTime.weekday(.wide).month(.wide).day())) \u{00B7} \(city)")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
-                .kerning(0.6)
-                .foregroundStyle(Color.picardoTextSecondary)
-                .accessibilityLabel("\(Date().formatted(date: .complete, time: .omitted)), \(city)")
-
-            HStack(alignment: .center) {
-                wordmark
-                Spacer(minLength: 12)
-                PicassoButton(inline: true)
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .center) {
+                    wordmark
+                    Spacer(minLength: 12)
+                    PicassoButton(inline: true)
+                }
+                Text(Date().formatted(.dateTime.month(.wide).day()))
+                    .font(.largeTitle.weight(.bold))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .accessibilityLabel(Date().formatted(date: .complete, time: .omitted))
             }
+            .padding(.horizontal, HomeLayout.margin)
+
+            ScrollView(.horizontal) {
+                HStack(spacing: 8) {
+                    ForEach(ArtCategory.allCases) { category in
+                        NavigationLink(value: category) {
+                            Text(category.rawValue)
+                                .font(.body.weight(.medium))
+                                .foregroundStyle(Color.picardoText)
+                                .padding(.horizontal, 16)
+                                .frame(height: 40)
+                                .background(Capsule().fill(Color.picardoCard))
+                                .overlay(Capsule().strokeBorder(Color.picardoBorder, lineWidth: 0.5))
+                        }
+                        .buttonStyle(PicardoPressStyle())
+                    }
+                }
+            }
+            .contentMargins(.horizontal, HomeLayout.margin, for: .scrollContent)
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
         }
-        .padding(.horizontal, HomeLayout.margin)
     }
 }
 
@@ -456,10 +467,127 @@ struct HomeArtworkTile: View {
     }
 }
 
+// MARK: - Story cards (News-style)
+
+/// "Source" line above a headline: a small avatar or icon and a name.
+struct HomeSourceLine: View {
+    let name: String
+    var avatar: String? = nil
+    var symbol: String? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            if let avatar, !avatar.isEmpty {
+                ArtworkImage(imageName: avatar, contentMode: .fill, maxDimension: 80)
+                    .frame(width: 20, height: 20)
+                    .clipShape(Circle())
+            } else if let symbol {
+                Image(systemName: symbol)
+                    .font(.footnote.weight(.semibold))
+                    .frame(width: 20, height: 20)
+            }
+            Text(name)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.picardoText)
+    }
+}
+
+/// The big story card: image on top, then source, headline and detail on the card.
+struct HomeLeadCard<Media: View, Source: View>: View {
+    let headline: String
+    var detail: String? = nil
+    var imageRatio: CGFloat = 4.0 / 3.0
+    @ViewBuilder var image: Media
+    @ViewBuilder var source: Source
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: HomeLayout.tileRadius + 4, style: .continuous)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Color.picardoCard
+                .aspectRatio(imageRatio, contentMode: .fit)
+                .overlay { image.allowsHitTesting(false) }
+                .clipped()
+
+            VStack(alignment: .leading, spacing: 8) {
+                source
+                Text(headline)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.picardoText)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let detail {
+                    Text(detail)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color.picardoCard)
+        .clipShape(shape)
+        .contentShape(shape)
+    }
+}
+
+/// The compact story card: source and headline on the left, a square image on the right.
+struct HomeCompactCard<Media: View, Source: View>: View {
+    let headline: String
+    var detail: String? = nil
+    var showsImage = true
+    @ViewBuilder var image: Media
+    @ViewBuilder var source: Source
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: HomeLayout.tileRadius + 4, style: .continuous)
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                source
+                Text(headline)
+                    .font(.headline)
+                    .foregroundStyle(Color.picardoText)
+                    .multilineTextAlignment(.leading)
+                    .lineLimit(3)
+                if let detail {
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            if showsImage {
+                Color.picardoBackground
+                    .frame(width: 96, height: 96)
+                    .overlay { image.allowsHitTesting(false) }
+                    .clipShape(RoundedRectangle(cornerRadius: HomeLayout.thumbRadius, style: .continuous))
+            }
+        }
+        .padding(16)
+        .background(Color.picardoCard)
+        .clipShape(shape)
+        .contentShape(shape)
+    }
+}
+
+private func priceText(_ artwork: Artwork) -> String {
+    artwork.isSold ? "Sold" : artwork.price.formatted(.currency(code: "USD").precision(.fractionLength(0)))
+}
+
 // MARK: - For you
 
-/// The personal marketplace shelf. Collectors see pieces in their mediums and budget;
-/// artists see work by people who make what they make.
+/// The personal marketplace, told like a front page: one lead piece, then three more.
+/// Collectors see their mediums and budget; artists see work by people who make what they make.
 struct HomeForYouShelf: View {
     let role: PicartdoRole?
     let mediums: Set<ArtCategory>
@@ -478,9 +606,9 @@ struct HomeForYouShelf: View {
         let available = Artwork.samples.filter { !$0.isSold && !excluding.contains($0.id) }
         let inMedium = mediums.isEmpty ? available : available.filter { mediums.contains($0.category) }
         let inBudget = role == .artist ? inMedium : inMedium.filter { fits($0.price, budget: budget) }
-        // Never an empty shelf: loosen budget first, then medium.
+        // Never empty: loosen budget first, then medium.
         let pool = inBudget.count >= 4 ? inBudget : (inMedium.count >= 4 ? inMedium : available)
-        return Array(pool.sorted { $0.likeCount > $1.likeCount }.prefix(10))
+        return Array(pool.sorted { $0.likeCount > $1.likeCount }.prefix(4))
     }
 
     private static func fits(_ price: Double, budget: CollectorBudget?) -> Bool {
@@ -503,14 +631,40 @@ struct HomeForYouShelf: View {
     }
 
     var body: some View {
-        if !picks.isEmpty {
+        if let lead = picks.first {
             VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
                 HomeSectionHeader(title: isArtist ? "From artists like you" : "For you", reason: reason)
-                HomeShelf {
-                    ForEach(picks) { artwork in
-                        HomeArtworkTile(artwork: artwork, width: 150)
+
+                VStack(spacing: HomeLayout.itemGap) {
+                    NavigationLink(value: lead) {
+                        HomeLeadCard(
+                            headline: lead.title,
+                            detail: "\(lead.medium) \u{00B7} \(priceText(lead))"
+                        ) {
+                            ArtworkImage(artwork: lead, contentMode: .fill, maxDimension: 1200)
+                        } source: {
+                            HomeSourceLine(name: lead.artistName, avatar: Artist.named(lead.artistName)?.avatarImage)
+                        }
+                        .homeZoomSource(lead.id)
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(picks.dropFirst()) { artwork in
+                        NavigationLink(value: artwork) {
+                            HomeCompactCard(
+                                headline: artwork.title,
+                                detail: "\(artwork.medium) \u{00B7} \(priceText(artwork))"
+                            ) {
+                                ArtworkImage(artwork: artwork, contentMode: .fill, maxDimension: 300)
+                            } source: {
+                                HomeSourceLine(name: artwork.artistName, avatar: Artist.named(artwork.artistName)?.avatarImage)
+                            }
+                            .homeZoomSource(artwork.id)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, HomeLayout.margin)
             }
         }
     }
@@ -776,67 +930,41 @@ struct HomeEventsShelf: View {
     let events: [ArtEventItem]
     let city: String
 
+    private func detail(_ event: ArtEventItem) -> String {
+        "\(event.month.capitalized) \(event.day) \u{00B7} \(event.type) \u{00B7} \(event.isFree ? "Free" : event.priceLabel)"
+    }
+
     var body: some View {
-        if !events.isEmpty {
+        if let lead = events.first {
             VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
-                HomeSectionHeader(title: "This week near you", reason: "Exhibitions, talks and live events in \(city)") {
+                HomeSectionHeader(title: "Near you", reason: "Exhibitions, talks and live events in \(city)") {
                     HomeSeeAll(value: CityEventsList())
                 }
-                HomeShelf {
-                    ForEach(events) { event in
+
+                VStack(spacing: HomeLayout.itemGap) {
+                    NavigationLink(value: lead) {
+                        HomeLeadCard(headline: lead.title, detail: detail(lead), imageRatio: 16.0 / 9.0) {
+                            ArtworkImage(imageName: lead.imageName, contentMode: .fill, maxDimension: 1200)
+                        } source: {
+                            HomeSourceLine(name: lead.venue, symbol: "building.columns")
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    ForEach(events.dropFirst()) { event in
                         NavigationLink(value: event) {
-                            HomeEventTile(event: event)
+                            HomeCompactCard(headline: event.title, detail: detail(event)) {
+                                ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 300)
+                            } source: {
+                                HomeSourceLine(name: event.venue, symbol: "building.columns")
+                            }
                         }
                         .buttonStyle(.plain)
                     }
                 }
+                .padding(.horizontal, HomeLayout.margin)
             }
         }
-    }
-}
-
-private struct HomeEventTile: View {
-    let event: ArtEventItem
-
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: HomeLayout.tileRadius, style: .continuous)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Color.picardoCard
-                .aspectRatio(16.0 / 10.0, contentMode: .fit)
-                .overlay {
-                    ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 700)
-                        .allowsHitTesting(false)
-                }
-                .overlay(alignment: .topLeading) {
-                    Text("\(event.month) \(event.day)")
-                        .font(.caption2.weight(.bold))
-                        .textCase(.uppercase)
-                        .foregroundStyle(Color.picardoText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.picardoBackground))
-                        .padding(10)
-                }
-                .clipShape(shape)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(event.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.picardoText)
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.leading)
-                Text("\(event.type) \u{00B7} \(event.isFree ? "Free" : event.priceLabel)")
-                    .font(.footnote)
-                    .foregroundStyle(Color.picardoTextSecondary)
-                    .lineLimit(1)
-            }
-        }
-        .frame(width: 260)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 }
 
@@ -847,17 +975,22 @@ struct HomeReadingList: View {
 
     var body: some View {
         if !articles.isEmpty {
-            VStack(alignment: .leading, spacing: HomeLayout.headerGap - 4) {
+            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
                 HomeSectionHeader(title: "Reading", reason: "Stories from the National Gallery of Art") {
                     HomeSeeAll(value: HomeArticlesList())
                 }
-                VStack(spacing: 0) {
-                    ForEach(Array(articles.prefix(3).enumerated()), id: \.element.id) { i, article in
-                        if i > 0 {
-                            Divider().padding(.leading, 56 + 12)
-                        }
+                VStack(spacing: HomeLayout.itemGap) {
+                    ForEach(articles.prefix(3)) { article in
                         NavigationLink(value: article) {
-                            row(article)
+                            HomeCompactCard(
+                                headline: article.title,
+                                detail: "\(article.author) \u{00B7} \(article.readTime) read",
+                                showsImage: !article.imageName.isEmpty
+                            ) {
+                                ArtworkImage(imageName: article.imageName, contentMode: .fill, maxDimension: 300)
+                            } source: {
+                                HomeSourceLine(name: article.kicker, symbol: "text.book.closed")
+                            }
                         }
                         .buttonStyle(.plain)
                     }
@@ -865,42 +998,6 @@ struct HomeReadingList: View {
                 .padding(.horizontal, HomeLayout.margin)
             }
         }
-    }
-
-    private func row(_ article: HomeArticle) -> some View {
-        HStack(spacing: 12) {
-            Color.picardoCard
-                .frame(width: 56, height: 56)
-                .overlay {
-                    if article.imageName.isEmpty {
-                        Image(systemName: "book.pages")
-                            .foregroundStyle(Color.picardoTextSecondary)
-                    } else {
-                        ArtworkImage(imageName: article.imageName, contentMode: .fill, maxDimension: 200)
-                            .allowsHitTesting(false)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: HomeLayout.thumbRadius, style: .continuous))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(article.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.picardoText)
-                    .lineLimit(2)
-                    .multilineTextAlignment(.leading)
-                Text("\(article.author) \u{00B7} \(article.readTime)")
-                    .font(.footnote)
-                    .foregroundStyle(Color.picardoTextSecondary)
-                    .lineLimit(1)
-            }
-            Spacer(minLength: 8)
-            Image(systemName: "chevron.right")
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.picardoTextSecondary.opacity(0.6))
-        }
-        .padding(.vertical, 10)
-        .contentShape(Rectangle())
-        .accessibilityElement(children: .combine)
     }
 }
 
