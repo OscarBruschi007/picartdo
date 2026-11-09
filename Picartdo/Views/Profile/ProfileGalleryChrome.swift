@@ -201,22 +201,6 @@ struct ProfileGalleryHeader: View {
         .multilineTextAlignment(.center)
     }
 
-    private func coverIconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
-        Button {
-            Haptics.tap()
-            action()
-        } label: {
-            Image(systemName: systemName)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 36, height: 36)
-                .background(.black.opacity(0.38), in: Circle())
-                .shadow(color: .black.opacity(0.35), radius: 6, y: 1)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(label)
-    }
-
     @ViewBuilder
     private var coverCard: some View {
         // Tall liquid-glass card. The cover photo is locked to the card's size so a
@@ -252,16 +236,6 @@ struct ProfileGalleryHeader: View {
                     // The handle is centred on the cover itself, not between
                     // the corner icons, so it lines up with the photo below.
                     ZStack {
-                        HStack(spacing: 8) {
-                            if personal {
-                                coverIconButton(
-                                    systemName: "envelope.fill",
-                                    label: "Messages",
-                                    action: onSecondary
-                                )
-                            }
-                            Spacer(minLength: 0)
-                        }
                         Text("@\(person.handle)")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.9))
