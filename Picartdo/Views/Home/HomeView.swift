@@ -415,21 +415,9 @@ struct HomeView: View {
         Array(homeFeed.studioVideos.filter { !hiddenPosts.contains($0.feedKey) }.prefix(3))
     }
 
-    /// Pieces already used by the featured carousel or the For you shelf.
-    private var shownAbove: Set<Artwork.ID> { Set(heroArtworks.map(\.id)) }
-
-    private var forYouPicks: [Artwork] {
-        HomeForYouShelf.picks(
-            role: taste.role,
-            mediums: taste.favoriteMediums,
-            budget: taste.budget,
-            excluding: shownAbove
-        )
-    }
-
-    /// Everything not shown higher up, for the open-ended grid at the bottom.
-    private func discoverArtworks(excluding shelf: [Artwork]) -> [Artwork] {
-        let used = shownAbove.union(shelf.map(\.id))
+    /// Everything not in the featured carousel, for the open-ended grid at the bottom.
+    private var discoverArtworks: [Artwork] {
+        let used = Set(heroArtworks.map(\.id))
         return Array(homeFeed.moreListings.filter { !used.contains($0.id) }.prefix(20))
     }
 
@@ -440,8 +428,7 @@ struct HomeView: View {
     }
 
     var body: some View {
-        let shelfPicks = forYouPicks
-        return NavigationStack(path: $path) {
+        NavigationStack(path: $path) {
             ZStack {
                 PicartdoBackground()
                     .ignoresSafeArea()
@@ -474,7 +461,7 @@ struct HomeView: View {
                         .padding(.top, 14)
                         .padding(.bottom, 8)
 
-                        homeFeedSections(shelfPicks)
+                        homeFeedSections
                             .padding(.top, 20)
                     }
                     .padding(.bottom, 110)
@@ -541,21 +528,13 @@ struct HomeView: View {
     }
 
     /// Everything below the stories.
-    private func homeFeedSections(_ shelfPicks: [Artwork]) -> some View {
+    private var homeFeedSections: some View {
         VStack(alignment: .leading, spacing: HomeLayout.sectionGap) {
             // Inspire: one big moment.
             VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
                 HomeSectionHeader(title: "Tonight\u{2019}s piece", reason: "Five works, chosen for this evening")
                 HomeFeaturedCarousel(artworks: heroArtworks) { buyArtwork = $0 }
             }
-
-            // Personalize: the marketplace, picked for you.
-            HomeForYouShelf(
-                role: taste.role,
-                mediums: taste.favoriteMediums,
-                budget: taste.budget,
-                picks: shelfPicks
-            )
 
             // Connect: what the people you follow are making.
             if !followingPosts.isEmpty {
@@ -576,7 +555,7 @@ struct HomeView: View {
             // Explore: out into the city, reading, and everything else.
             HomeEventsShelf(events: cityEvents, city: city)
             HomeReadingList(articles: featuredArticles)
-            HomeDiscoverGrid(artworks: discoverArtworks(excluding: shelfPicks))
+            HomeDiscoverGrid(artworks: discoverArtworks)
         }
     }
 

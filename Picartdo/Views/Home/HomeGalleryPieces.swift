@@ -496,66 +496,6 @@ struct HomeArtworkTile: View {
     }
 }
 
-// MARK: - For you
-
-/// The personal marketplace shelf. Collectors see pieces in their mediums and budget;
-/// artists see work by people who make what they make.
-struct HomeForYouShelf: View {
-    let role: PicartdoRole?
-    let mediums: Set<ArtCategory>
-    let budget: CollectorBudget?
-    let picks: [Artwork]
-
-    private var isArtist: Bool { role == .artist }
-
-    /// Pieces in their mediums (and budget, for collectors), most loved first.
-    static func picks(
-        role: PicartdoRole?,
-        mediums: Set<ArtCategory>,
-        budget: CollectorBudget?,
-        excluding: Set<Artwork.ID>
-    ) -> [Artwork] {
-        let available = Artwork.samples.filter { !$0.isSold && !excluding.contains($0.id) }
-        let inMedium = mediums.isEmpty ? available : available.filter { mediums.contains($0.category) }
-        let inBudget = role == .artist ? inMedium : inMedium.filter { fits($0.price, budget: budget) }
-        // Never an empty shelf: loosen budget first, then medium.
-        let pool = inBudget.count >= 4 ? inBudget : (inMedium.count >= 4 ? inMedium : available)
-        return Array(pool.sorted { $0.likeCount > $1.likeCount }.prefix(10))
-    }
-
-    private static func fits(_ price: Double, budget: CollectorBudget?) -> Bool {
-        switch budget {
-        case .under500:  price < 500
-        case .upTo2000:  price <= 2000
-        case .statement: price >= 2000
-        case .browsing, nil: true
-        }
-    }
-
-    private var reason: String {
-        let names = ArtCategory.allCases.filter(mediums.contains).prefix(2).map(\.rawValue)
-        if isArtist {
-            return names.isEmpty ? "Artists working the way you do" : "Artists working in " + names.joined(separator: " and ").lowercased()
-        }
-        var line = names.isEmpty ? "Popular with collectors" : names.joined(separator: " and ")
-        if let budget, budget != .browsing { line += ", " + budget.price.lowercased() }
-        return line
-    }
-
-    var body: some View {
-        if !picks.isEmpty {
-            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
-                HomeSectionHeader(title: isArtist ? "From artists like you" : "For you", reason: reason)
-                HomeShelf {
-                    ForEach(picks) { artwork in
-                        HomeArtworkTile(artwork: artwork, width: 150)
-                    }
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Posts from people you follow
 
 /// One post layout for everything: who, the media, the piece it shows, actions, caption.
@@ -588,13 +528,16 @@ struct HomePostCard: View {
             Text("\(Text(firstName).fontWeight(.semibold)) \(post.caption)")
                 .font(.subheadline)
                 .foregroundStyle(Color.picardoText)
+                .multilineTextAlignment(.center)
                 .lineLimit(2)
+                .frame(maxWidth: .infinity)
         }
         .messageComposer(isPresented: $showMessage, artist: post.artist)
     }
 
+    /// Who posted and when, centred over the media; the options menu sits on the right.
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             NavigationLink(value: post.artist) {
                 HStack(spacing: 10) {
                     ArtworkImage(imageName: post.artist.avatarImage, contentMode: .fill, maxDimension: 120)
@@ -616,9 +559,10 @@ struct HomePostCard: View {
             Text("\u{00B7} \(post.timeAgo)")
                 .font(.subheadline)
                 .foregroundStyle(Color.picardoTextSecondary)
-
-            Spacer(minLength: 8)
-
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 44)
+        .overlay(alignment: .trailing) {
             Menu {
                 Button {
                     showMessage = true
@@ -637,6 +581,7 @@ struct HomePostCard: View {
             }
             .accessibilityLabel("More options")
         }
+        .frame(minHeight: 44)
     }
 
     private var media: some View {
@@ -693,8 +638,9 @@ struct HomePostCard: View {
         .accessibilityHint("Opens the listing")
     }
 
+    /// Like, comments, message and save, centred under the media.
     private var actions: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 28) {
             Button {
                 liked.toggle()
             } label: {
@@ -723,8 +669,6 @@ struct HomePostCard: View {
             }
             .accessibilityLabel("Message \(firstName)")
 
-            Spacer()
-
             Button {
                 saved.toggle()
             } label: {
@@ -738,6 +682,7 @@ struct HomePostCard: View {
         .foregroundStyle(Color.picardoText)
         .buttonStyle(.plain)
         .frame(minHeight: 32)
+        .frame(maxWidth: .infinity)
     }
 
     private func count(_ n: Int) -> String {
