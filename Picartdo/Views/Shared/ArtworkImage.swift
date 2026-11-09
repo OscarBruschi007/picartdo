@@ -88,6 +88,7 @@ final class ArtworkImageCache: @unchecked Sendable {
 
     private let memory = NSCache<NSString, UIImage>()
     private let ioQueue = DispatchQueue(label: "com.picartdo.artwork-image-cache", qos: .utility)
+    private let warmQueue = DispatchQueue(label: "com.picartdo.artwork-image-warm", qos: .background)
     private let session: URLSession
     private let diskDirectory: URL
     private let lock = NSLock()
@@ -162,20 +163,27 @@ final class ArtworkImageCache: @unchecked Sendable {
     }
 
     /// Decode common assets ahead of first scroll.
+    /// Starts after launch and queues one image at a time, so it never competes with the
+    /// first frame and never holds up an image someone is actually looking at.
     func warmListedAssets() {
+        var names: [String] = Artwork.samples.map(\.imageName)
+        names += (1...9).map { String(format: "tattoo_studio_%02d", $0) }
+        names += ["tattoo_hero"]
+        warmQueue.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            self?.warm(names[...])
+        }
+    }
+
+    /// Decodes one image, then queues the next, so on-screen requests slot in between.
+    private func warm(_ names: ArraySlice<String>) {
+        guard let name = names.first else { return }
         ioQueue.async { [weak self] in
             guard let self else { return }
-            var names: [String] = Artwork.samples.map(\.imageName)
-            names += (1...9).map { String(format: "tattoo_studio_%02d", $0) }
-            names += ["tattoo_hero"]
-            for name in names {
-                let source = ArtworkImage.Source.named(name)
-                let key = Self.key(for: source, maxDimension: 900)
-                if self.memory.object(forKey: key as NSString) != nil { continue }
-                guard let raw = UIImage(named: name) else { continue }
-                let sized = Self.downsample(raw, maxDimension: 900)
-                self.store(sized, key: key)
+            let key = Self.key(for: .named(name), maxDimension: 900)
+            if self.memory.object(forKey: key as NSString) == nil, let raw = UIImage(named: name) {
+                self.store(Self.downsample(raw, maxDimension: 900), key: key)
             }
+            self.warmQueue.async { [weak self] in self?.warm(names.dropFirst()) }
         }
     }
 

@@ -87,23 +87,44 @@ struct PaperGrain: View {
     private static let tile: UIImage = {
         // Rendered at 3x with one-pixel specks, so the grain is finer than a point
         // and reads as paper rather than visible noise.
+        // Written straight into a pixel buffer: the same specks as drawing ~32,000 tiny
+        // rects, but in a few milliseconds instead of ~0.4 s on the first frame.
         let side = 120
-        let scale: CGFloat = 3
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = scale
-        let renderer = UIGraphicsImageRenderer(size: CGSize(width: side, height: side), format: format)
-        return renderer.image { ctx in
-            var rng = SeededGenerator(seed: 0x51C0FFEE)
-            let pixels = Int(CGFloat(side) * scale)
-            for _ in 0..<(pixels * pixels / 4) {
-                let x = CGFloat(Int.random(in: 0..<pixels, using: &rng)) / scale
-                let y = CGFloat(Int.random(in: 0..<pixels, using: &rng)) / scale
-                let dark = Bool.random(using: &rng)
-                let alpha = CGFloat.random(in: 0.2...1, using: &rng)
-                (dark ? UIColor.black : UIColor.white).withAlphaComponent(alpha).setFill()
-                ctx.fill(CGRect(x: x, y: y, width: 1 / scale, height: 1 / scale))
+        let scale = 3
+        let pixels = side * scale
+        var buffer = [UInt8](repeating: 0, count: pixels * pixels * 4) // premultiplied RGBA
+        var rng = SeededGenerator(seed: 0x51C0FFEE)
+        for _ in 0..<(pixels * pixels / 4) {
+            let x = Int.random(in: 0..<pixels, using: &rng)
+            let y = Int.random(in: 0..<pixels, using: &rng)
+            let dark = Bool.random(using: &rng)
+            let alpha = Double.random(in: 0.2...1, using: &rng)
+            // Source-over, as the fill did: out = src + dst * (1 - srcAlpha).
+            let i = (y * pixels + x) * 4
+            let keep = 1 - alpha
+            let channel = dark ? 0 : 255 * alpha
+            for c in 0..<3 {
+                buffer[i + c] = UInt8((channel + Double(buffer[i + c]) * keep).rounded())
             }
+            buffer[i + 3] = UInt8((255 * alpha + Double(buffer[i + 3]) * keep).rounded())
         }
+        let data = Data(buffer) as CFData
+        guard let provider = CGDataProvider(data: data),
+              let image = CGImage(
+                width: pixels,
+                height: pixels,
+                bitsPerComponent: 8,
+                bitsPerPixel: 32,
+                bytesPerRow: pixels * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                provider: provider,
+                decode: nil,
+                shouldInterpolate: false,
+                intent: .defaultIntent
+              )
+        else { return UIImage() }
+        return UIImage(cgImage: image, scale: CGFloat(scale), orientation: .up)
     }()
 
     var body: some View {
