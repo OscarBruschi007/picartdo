@@ -394,6 +394,10 @@ struct HomeView: View {
     @State private var showBuySheet = false
     @State private var buyArtwork: Artwork?
     @State private var path = NavigationPath()
+    @State private var identity = ProfileIdentity.load()
+    @State private var hiddenPosts: Set<String> = HiddenPosts.load()
+    @State private var refreshCount = 0
+    @Namespace private var zoom
 
     private var featured: Artwork { homeFeed.featured }
     private var storyArtists: [Artist] { homeFeed.storyArtists }
@@ -405,91 +409,128 @@ struct HomeView: View {
         [featured] + homeFeed.moreListings.filter { $0.id != featured.id }.prefix(4)
     }
 
-    /// Listing, video, listing, video — leftover videos or listings trail at the end.
-    private var mixedFeed: [HomeFeedItem] {
-        let heroIDs = Set(heroArtworks.map(\.id))
-        let listings = homeFeed.moreListings.filter { !heroIDs.contains($0.id) }
-        let videos = homeFeed.studioVideos
-        let count = max(listings.count, videos.count)
-        var items: [HomeFeedItem] = []
-        items.reserveCapacity(listings.count + videos.count)
-        for index in 0..<count {
-            if index < listings.count {
-                items.append(.listing(listings[index]))
-            }
-            if index < videos.count {
-                items.append(.video(videos[index]))
-            }
-        }
-        return items
+    /// Studio posts from people you follow (first three; the rest live on their profiles).
+    private var followingPosts: [ArtistPost] {
+        Array(homeFeed.studioVideos.filter { !hiddenPosts.contains($0.feedKey) }.prefix(3))
+    }
+
+    /// Pieces already used by the featured carousel or the For you shelf.
+    private var shownAbove: Set<Artwork.ID> { Set(heroArtworks.map(\.id)) }
+
+    private var forYouPicks: [Artwork] {
+        HomeForYouShelf.picks(
+            role: taste.role,
+            mediums: taste.favoriteMediums,
+            budget: taste.budget,
+            excluding: shownAbove
+        )
+    }
+
+    /// Everything not shown higher up, for the open-ended grid at the bottom.
+    private func discoverArtworks(excluding shelf: [Artwork]) -> [Artwork] {
+        let used = shownAbove.union(shelf.map(\.id))
+        return Array(homeFeed.moreListings.filter { !used.contains($0.id) }.prefix(20))
+    }
+
+    private var city: String {
+        let first = identity.location.split(separator: ",").first
+            .map { String($0).trimmingCharacters(in: .whitespaces) }
+        return first?.isEmpty == false ? first! : "Toronto"
     }
 
     var body: some View {
-        NavigationStack(path: $path) {
+        let shelfPicks = forYouPicks
+        return NavigationStack(path: $path) {
             ZStack {
                 PicartdoBackground()
                     .ignoresSafeArea()
 
-                ScrollView(showsIndicators: false) {
-                    VStack(spacing: 0) {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: HomeLayout.sectionGap) {
 
-                        // ── Today, here: the visit happens somewhere ──
-                        HomeDateLine()
-                            .padding(.top, 8)
-
-                        // ── Picartdo wordmark — tap it, the era steps forward ──
-                        PicardoBrandWordmark(size: 24, tracking: 2.5)
-                            // During launch the splash wordmark flies onto this spot, then hands over.
-                            .opacity(splashBridge?.hidesHomeWordmark == true ? 0 : 1)
-                            .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-                                splashBridge?.reportWordmarkFrame(frame)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 6)
-                            .padding(.bottom, 18)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.6)) {
-                                    PicardoEra.advance()
+                        // Greet: where and when, the wordmark, Picasso.
+                        HomeHeader(city: city) {
+                            // The splash wordmark lands on this exact spot; tap it to step the era.
+                            PicardoBrandWordmark(size: 24, tracking: 2.5)
+                                .opacity(splashBridge?.hidesHomeWordmark == true ? 0 : 1)
+                                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                                    splashBridge?.reportWordmarkFrame(frame)
                                 }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.6)) {
+                                        PicardoEra.advance()
+                                    }
+                                }
+                                .accessibilityAddTraits(.isHeader)
+                        }
+                        .padding(.top, 8)
+                        .padding(.bottom, -HomeLayout.sectionGap + HomeLayout.headerGap)
+
+                        // Connect: the people you follow.
+                        HomeStoriesRow(artists: storyArtists, identity: identity) {
+                            showSellSheet = true
+                        }
+
+                        // Inspire: one big moment.
+                        VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                            HomeSectionHeader(title: "Tonight\u{2019}s piece", reason: "Five works, chosen for this evening")
+                            HomeFeaturedCarousel(artworks: heroArtworks) { buyArtwork = $0 }
+                        }
+
+                        // Personalize: the marketplace, picked for you.
+                        HomeForYouShelf(
+                            role: taste.role,
+                            mediums: taste.favoriteMediums,
+                            budget: taste.budget,
+                            picks: shelfPicks
+                        )
+
+                        // Connect: what the people you follow are making.
+                        if !followingPosts.isEmpty {
+                            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                                HomeSectionHeader(title: "From people you follow", reason: "New work and studio moments")
+                                VStack(spacing: HomeLayout.sectionGap) {
+                                    ForEach(followingPosts) { post in
+                                        HomePostCard(post: post) { hide(post) }
+                                            .transition(.opacity)
+                                    }
+                                }
+                                .padding(.horizontal, HomeLayout.margin)
                             }
+                        }
 
-                        // ── Circular artist stories ──
-                        StoriesRow(artists: storyArtists)
-                            .padding(.bottom, 30)
+                        HomeStudioVisit(feature: homeFeed.artistOfTheWeek)
 
-                        // ── One piece to stop for ──
-                        TonightsPieceHero(artworks: heroArtworks) { buyArtwork = $0 }
-                            .id(featured.imageName)
-                            .padding(.bottom, 48)
-
-                        // ── Rooms, in order ──
-                        personalSections
-                        StudioVisitSection(feature: homeFeed.artistOfTheWeek)
-                            .padding(.bottom, 48)
-                        eventsRoom
-                            .padding(.bottom, 48)
-                        readingRoom
-                            .padding(.bottom, 48)
-                        studiosFeed
-
-                        Color.clear.frame(height: 110)
+                        // Explore: out into the city, reading, and everything else.
+                        HomeEventsShelf(events: cityEvents, city: city)
+                        HomeReadingList(articles: featuredArticles)
+                        HomeDiscoverGrid(artworks: discoverArtworks(excluding: shelfPicks))
                     }
+                    .padding(.bottom, 110)
+                    .animation(PicardoMotion.transition, value: hiddenPosts)
                 }
+                .scrollIndicators(.hidden)
+                .scrollEdgeEffectStyle(.soft, for: .top)
                 .refreshable {
                     try? await Task.sleep(for: .milliseconds(550))
                     withAnimation(PicardoMotion.transition) {
                         homeFeed.refresh(taste: taste)
                     }
+                    refreshCount += 1
                 }
+                .sensoryFeedback(.success, trigger: refreshCount)
                 .onAppear {
                     homeFeed.applyTaste(taste)
+                    identity = ProfileIdentity.load()
                 }
             }
+            .environment(\.homeZoomNamespace, zoom)
             .navigationBarHidden(true)
             .navigationDestination(for: Artwork.self) { artwork in
                 ArtworkDetailView(artwork: artwork)
                     .picardoPushedScreen()
+                    .navigationTransition(.zoom(sourceID: artwork.id, in: zoom))
             }
             .navigationDestination(for: Artist.self) { artist in
                 ArtistStoreView(artist: artist)
@@ -518,9 +559,6 @@ struct HomeView: View {
                 BuyConfirmationSheet(artwork: artwork)
                     .presentationBackground(Color.picardoBackground)
             }
-            .overlay(alignment: .topTrailing) {
-                PicassoButton()
-            }
             .onChange(of: homeRootTick) { _, _ in
                 guard !path.isEmpty else { return }
                 path = NavigationPath()
@@ -528,73 +566,11 @@ struct HomeView: View {
         }
     }
 
-    /// Collectors (and "Both") see their wall first.
-    @ViewBuilder
-    private var personalSections: some View {
-        if let role = taste.role, role.collectsArt {
-            HomeWallPicks(mediums: taste.favoriteMediums, budget: taste.budget)
-                .padding(.bottom, 48)
-        }
-    }
-
-    private var eventsRoom: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            GallerySectionHeader(title: "This week in Toronto", reason: "Exhibitions, talks and live events") {
-                GallerySeeAll(value: CityEventsList())
-            }
-            VStack(spacing: 0) {
-                ForEach(Array(cityEvents.enumerated()), id: \.element.id) { index, event in
-                    NavigationLink(value: event) {
-                        CityEventRow(event: event)
-                    }
-                    .buttonStyle(.plain)
-
-                    if index < cityEvents.count - 1 {
-                        Divider().padding(.leading, 58)
-                    }
-                }
-            }
-            .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
-            .padding(.horizontal, 16)
-        }
-    }
-
-    @ViewBuilder
-    private var readingRoom: some View {
-        if !featuredArticles.isEmpty {
-            VStack(alignment: .leading, spacing: 16) {
-                GallerySectionHeader(title: "Reading", reason: "Stories from the National Gallery of Art") {
-                    GallerySeeAll(value: HomeArticlesList())
-                }
-                ReadingList(articles: featuredArticles)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var studiosFeed: some View {
-        if !mixedFeed.isEmpty {
-            VStack(alignment: .leading, spacing: 18) {
-                GallerySectionHeader(title: "From the studios", reason: "New work and studio moments, picked for you")
-                LazyVStack(spacing: 40) {
-                    ForEach(mixedFeed) { item in
-                        switch item {
-                        case .listing(let artwork):
-                            GalleryFeedCard(
-                                artwork: artwork,
-                                isSaved: wishlist.isLiked(artwork),
-                                onSave: { wishlist.toggle(artwork) },
-                                onBuy: { buyArtwork = artwork }
-                            )
-                        case .video(let post):
-                            PostCard(post: post)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-        }
+    /// "Not for me" hides the post here and remembers it on this device.
+    private func hide(_ post: ArtistPost) {
+        Haptics.tap()
+        hiddenPosts.insert(post.feedKey)
+        HiddenPosts.save(hiddenPosts)
     }
 }
 

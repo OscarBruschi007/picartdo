@@ -1,75 +1,96 @@
 import SwiftUI
 
-// Home as a gallery visit: today's date and city, one piece to stop for, then rooms
-// (your wall, a studio visit, what's on, reading, the studios' feed). Art is shown
-// whole, never cropped, and big enough to look at.
+// Home, built from one small system (see `HomeLayout`):
+//   • Hero card: full width, 28pt radius, the art leads, text on a soft scrim.
+//   • Tile: fixed ratio per shelf, 16pt radius, plain text underneath.
+//   • Row: 10pt thumbnail and text, hairline dividers, no box around it.
+// One header style, one margin, one gap between sections. Red is kept for Buy,
+// unseen story rings and "See all"; everything else is ink on paper.
 
-// MARK: - Date line
+// MARK: - Zoom transitions
 
-/// "FRIDAY, NOVEMBER 6 · TORONTO": the visit happens somewhere, today.
-struct HomeDateLine: View {
-    private var city: String {
-        let location = ProfileIdentity.load().location
-        let first = location.split(separator: ",").first.map { String($0).trimmingCharacters(in: .whitespaces) }
-        return (first?.isEmpty == false ? first! : "Toronto")
+private struct HomeZoomNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+extension EnvironmentValues {
+    /// Set by Home so artwork opens with a zoom from wherever it was tapped.
+    var homeZoomNamespace: Namespace.ID? {
+        get { self[HomeZoomNamespaceKey.self] }
+        set { self[HomeZoomNamespaceKey.self] = newValue }
     }
+}
 
-    var body: some View {
-        Text("\(Date().formatted(.dateTime.weekday(.wide).month(.wide).day()).uppercased()) \u{00B7} \(city.uppercased())")
-            .font(PicardoType.meta(10))
-            .kerning(1.4)
-            .foregroundStyle(Color.picardoTextSecondary)
-            .frame(maxWidth: .infinity)
-            .accessibilityLabel("\(Date().formatted(date: .complete, time: .omitted)), \(city)")
+private struct HomeZoomSource: ViewModifier {
+    let id: AnyHashable
+    @Environment(\.homeZoomNamespace) private var namespace
+
+    func body(content: Content) -> some View {
+        if let namespace {
+            content.matchedTransitionSource(id: id, in: namespace)
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// Marks this view as where a zoom into the piece starts.
+    func homeZoomSource(_ id: AnyHashable) -> some View {
+        modifier(HomeZoomSource(id: id))
     }
 }
 
 // MARK: - Section header
 
-/// One header for every room: a serif title and a single line saying why it's here.
-struct GallerySectionHeader<Accessory: View>: View {
+/// The one header every Home section uses: a quiet title, a short "why", an optional "See all".
+struct HomeSectionHeader<Accessory: View>: View {
     let title: String
-    let reason: String
+    var reason: String? = nil
     @ViewBuilder var accessory: Accessory
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 27, weight: .bold, design: .serif))
-                    .tracking(-0.3)
+                    .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.picardoText)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(reason)
-                    .font(.system(size: 14))
-                    .foregroundStyle(Color.picardoTextSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let reason {
+                    Text(reason)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .lineLimit(2)
+                }
             }
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             accessory
         }
-        .padding(.horizontal, 20)
-        .accessibilityElement(children: .combine)
+        .padding(.horizontal, HomeLayout.margin)
     }
 }
 
-extension GallerySectionHeader where Accessory == EmptyView {
-    init(title: String, reason: String) {
+extension HomeSectionHeader where Accessory == EmptyView {
+    init(title: String, reason: String? = nil) {
         self.init(title: title, reason: reason) { EmptyView() }
     }
 }
 
-/// "See all ›" for a header.
-struct GallerySeeAll<Value: Hashable>: View {
+/// "See all ›", in the accent colour.
+struct HomeSeeAll<Value: Hashable>: View {
     let value: Value
+
     var body: some View {
         NavigationLink(value: value) {
-            HStack(spacing: 3) {
+            HStack(spacing: 2) {
                 Text("See all")
-                Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
+                Image(systemName: "chevron.right")
+                    .imageScale(.small)
+                    .fontWeight(.semibold)
             }
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Color.picardoText)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.picardoNeonRed)
             .frame(minHeight: 44)
             .contentShape(Rectangle())
         }
@@ -77,277 +98,305 @@ struct GallerySeeAll<Value: Hashable>: View {
     }
 }
 
-// MARK: - Tonight's piece
+// MARK: - Shelf
 
-/// The first thing you see: one artwork, whole and large, on a soft wash of its own
-/// colours, with a museum wall label. Swipe for the next.
-struct TonightsPieceHero: View {
+/// A horizontal shelf that snaps to its tiles. At accessibility text sizes it
+/// becomes a vertical list, so nothing gets squeezed.
+struct HomeShelf<Content: View>: View {
+    @ViewBuilder var content: Content
+    @Environment(\.dynamicTypeSize) private var typeSize
+
+    var body: some View {
+        if typeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 24) { content }
+                .padding(.horizontal, HomeLayout.margin)
+        } else {
+            ScrollView(.horizontal) {
+                LazyHStack(alignment: .top, spacing: HomeLayout.itemGap) { content }
+                    .scrollTargetLayout()
+            }
+            .contentMargins(.horizontal, HomeLayout.margin, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollIndicators(.hidden)
+            .scrollClipDisabled()
+        }
+    }
+}
+
+// MARK: - Header
+
+/// Date and city over the wordmark, with Picasso on the trailing edge.
+struct HomeHeader<Wordmark: View>: View {
+    let city: String
+    @ViewBuilder var wordmark: Wordmark
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("\(Date().formatted(.dateTime.weekday(.wide).month(.wide).day())) \u{00B7} \(city)")
+                .font(.caption.weight(.semibold))
+                .textCase(.uppercase)
+                .kerning(0.6)
+                .foregroundStyle(Color.picardoTextSecondary)
+                .accessibilityLabel("\(Date().formatted(date: .complete, time: .omitted)), \(city)")
+
+            HStack(alignment: .center) {
+                wordmark
+                Spacer(minLength: 12)
+                PicassoButton(inline: true)
+            }
+        }
+        .padding(.horizontal, HomeLayout.margin)
+    }
+}
+
+// MARK: - Stories
+
+/// Everyone the same size. Unseen stories get a thin accent ring, seen ones a hairline.
+struct HomeStoriesRow: View {
+    let artists: [Artist]
+    let identity: ProfileIdentity
+    var onAddStory: () -> Void
+
+    @State private var openedStory: Artist?
+    @State private var messageArtist: Artist?
+    @State private var seen: Set<Artist.ID> = []
+
+    var body: some View {
+        ScrollView(.horizontal) {
+            HStack(alignment: .top, spacing: HomeLayout.itemGap) {
+                Button {
+                    Haptics.tap()
+                    onAddStory()
+                } label: {
+                    yourStory
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Add to your story")
+
+                ForEach(artists) { artist in
+                    Button {
+                        Haptics.tap()
+                        openedStory = artist
+                    } label: {
+                        HomeStoryAvatar(
+                            name: artist.name.components(separatedBy: " ").first ?? artist.name,
+                            ring: seen.contains(artist.id) ? .seen : .unseen
+                        ) {
+                            ArtworkImage(imageName: artist.avatarImage, contentMode: .fill, maxDimension: 240)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(artist.name)\u{2019}s story")
+                    .accessibilityValue(seen.contains(artist.id) ? "Seen" : "New")
+                    .contextMenu {
+                        Button {
+                            messageArtist = artist
+                        } label: {
+                            Label("Message", systemImage: "envelope")
+                        }
+                        NavigationLink(value: artist) {
+                            Label("View profile", systemImage: "person")
+                        }
+                    }
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .contentMargins(.horizontal, HomeLayout.margin, for: .scrollContent)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+        .fullScreenCover(item: $openedStory) { artist in
+            StoryViewer(story: artist.feedStory, artist: artist) {
+                seen.insert(artist.id)
+                openedStory = nil
+            }
+        }
+        .messageComposer(artist: $messageArtist)
+    }
+
+    private var yourStory: some View {
+        HomeStoryAvatar(name: "Your story", ring: .none) {
+            if let custom = identity.avatarImage {
+                Image(uiImage: custom).resizable().scaledToFill()
+            } else {
+                ArtworkImage(imageName: identity.avatarAsset, contentMode: .fill, maxDimension: 240)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            Image(systemName: "plus")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(Color.picardoBackground)
+                .frame(width: 22, height: 22)
+                .background(Circle().fill(Color.picardoText))
+                .overlay(Circle().strokeBorder(Color.picardoBackground, lineWidth: 2))
+                .offset(x: -2, y: 50)
+        }
+    }
+}
+
+struct HomeStoryAvatar<Photo: View>: View {
+    enum Ring { case unseen, seen, none }
+
+    let name: String
+    let ring: Ring
+    @ViewBuilder var photo: Photo
+
+    private static var size: CGFloat { 64 }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            photo
+                .frame(width: Self.size, height: Self.size)
+                .background(Color.picardoCard)
+                .clipShape(Circle())
+                .padding(4)
+                .overlay {
+                    switch ring {
+                    case .unseen: Circle().strokeBorder(Color.picardoNeonRed, lineWidth: 2)
+                    case .seen:   Circle().strokeBorder(Color.picardoBorder, lineWidth: 1)
+                    case .none:   EmptyView()
+                    }
+                }
+
+            Text(name)
+                .font(.caption)
+                .foregroundStyle(ring == .seen ? Color.picardoTextSecondary : Color.picardoText)
+                .lineLimit(1)
+        }
+        .frame(width: Self.size + 8)
+    }
+}
+
+// MARK: - Featured (the one big moment)
+
+/// Up to five pieces, one per page. The art is shown whole on a soft wash of its
+/// own colours, with the label and Buy on a scrim along the bottom.
+struct HomeFeaturedCarousel: View {
     let artworks: [Artwork]
     var onBuy: (Artwork) -> Void
 
-    @Environment(WishlistStore.self) private var wishlist
-    @State private var index = 0
+    @State private var current: Artwork.ID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var index: Int {
+        artworks.firstIndex { $0.id == current } ?? 0
+    }
 
     var body: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Text("TONIGHT\u{2019}S PIECE")
-                    .font(PicardoType.meta(10))
-                    .kerning(1.4)
-                    .foregroundStyle(Color.picardoTextSecondary)
-                Spacer()
-                if artworks.count > 1 {
-                    Text("\(index + 1) / \(artworks.count)")
-                        .font(PicardoType.meta(10))
-                        .foregroundStyle(Color.picardoTextSecondary)
-                        .contentTransition(.numericText())
-                        .accessibilityHidden(true)
+        VStack(spacing: HomeLayout.itemGap) {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: HomeLayout.itemGap) {
+                    ForEach(artworks) { artwork in
+                        HomeFeaturedCard(artwork: artwork, onBuy: { onBuy(artwork) })
+                            .containerRelativeFrame(.horizontal)
+                            .scrollTransition(axis: .horizontal) { content, phase in
+                                content
+                                    .scaleEffect(reduceMotion || phase.isIdentity ? 1 : 0.96)
+                                    .opacity(phase.isIdentity ? 1 : 0.85)
+                            }
+                    }
                 }
+                .scrollTargetLayout()
             }
-            .padding(.horizontal, 20)
+            .contentMargins(.horizontal, HomeLayout.margin, for: .scrollContent)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: $current)
+            .scrollIndicators(.hidden)
+            .onChange(of: current) { _, _ in Haptics.select() }
 
-            TabView(selection: $index) {
-                ForEach(Array(artworks.enumerated()), id: \.element.id) { i, artwork in
-                    page(artwork)
-                        .padding(.horizontal, 16)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                        .tag(i)
+            if artworks.count > 1 {
+                HStack(spacing: 6) {
+                    ForEach(Array(artworks.enumerated()), id: \.element.id) { i, _ in
+                        Capsule()
+                            .fill(Color.picardoText.opacity(i == index ? 0.9 : 0.2))
+                            .frame(width: i == index ? 16 : 6, height: 6)
+                    }
                 }
+                .animation(PicardoMotion.quick, value: index)
+                .accessibilityElement()
+                .accessibilityLabel("Piece \(index + 1) of \(artworks.count)")
             }
-            .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 580)
-            .onChange(of: index) { _, _ in Haptics.select() }
         }
     }
+}
 
-    private func page(_ artwork: Artwork) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+private struct HomeFeaturedCard: View {
+    let artwork: Artwork
+    var onBuy: () -> Void
+
+    @Environment(WishlistStore.self) private var wishlist
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: HomeLayout.heroRadius, style: .continuous)
+    }
+
+    var body: some View {
+        let saved = wishlist.isLiked(artwork)
+        VStack(alignment: .leading, spacing: 14) {
             NavigationLink(value: artwork) {
-                GalleryArtworkTile(artwork: artwork, inset: 30, maxDimension: 1600)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 470)
+                Color.picardoCard
+                    .overlay {
+                        // A soft wash of the piece's own colours behind it.
+                        ArtworkImage(artwork: artwork, contentMode: .fill, maxDimension: 300)
+                            .blur(radius: 40)
+                            .opacity(0.5)
+                            .allowsHitTesting(false)
+                    }
+                    .overlay {
+                        ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: 1600)
+                            .shadow(color: .black.opacity(0.16), radius: 14, y: 8)
+                            .padding(28)
+                            .allowsHitTesting(false)
+                    }
+                    .aspectRatio(4.0 / 5.0, contentMode: .fit)
+                    .clipShape(shape)
+                    .contentShape(shape)
+                    .homeZoomSource(artwork.id)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(artwork.title) by \(artwork.artistName)")
+            .accessibilityLabel("\(artwork.title) by \(artwork.artistName), \(artwork.price.formatted(.currency(code: "USD").precision(.fractionLength(0))))")
             .accessibilityHint("Opens the piece")
 
-            wallLabel(artwork)
-                .padding(.top, 14)
-                .padding(.horizontal, 4)
-        }
-    }
-
-    private func specLine(_ artwork: Artwork) -> String {
-        [artwork.medium, artwork.dimensions]
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-            .joined(separator: " \u{00B7} ")
-    }
-
-    private func wallLabel(_ artwork: Artwork) -> some View {
-        let saved = wishlist.isLiked(artwork)
-        return HStack(alignment: .center, spacing: 12) {
-            // Set like a museum wall label: who, what, made of, how big, how much.
-            VStack(alignment: .leading, spacing: 3) {
-                Text(artwork.artistName)
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(Color.picardoText)
-                Text(artwork.title)
-                    .font(.system(size: 21, weight: .semibold, design: .serif).italic())
-                    .foregroundStyle(Color.picardoText)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                if !specLine(artwork).isEmpty {
-                    Text(specLine(artwork))
-                        .font(.system(size: 12.5))
+            HStack(alignment: .center, spacing: 8) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(artwork.title)
+                        .font(.system(.title3, design: .serif).weight(.semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .lineLimit(1)
+                    Text("\(artwork.artistName) \u{00B7} \(artwork.price.formatted(.currency(code: "USD").precision(.fractionLength(0))))")
+                        .font(.subheadline)
                         .foregroundStyle(Color.picardoTextSecondary)
                         .lineLimit(1)
                 }
-                Text(artwork.price, format: .currency(code: "USD").precision(.fractionLength(0)))
-                    .font(.system(size: 14.5, weight: .semibold))
-                    .foregroundStyle(Color.picardoText)
-                    .padding(.top, 3)
-            }
-            Spacer(minLength: 8)
-            Button {
-                withAnimation(PicardoMotion.quick) { wishlist.toggle(artwork) }
-            } label: {
-                Image(systemName: saved ? "heart.fill" : "heart")
-                    .font(.system(size: 19, weight: .medium))
-                    .foregroundStyle(saved ? Color.picardoNeonRed : Color.picardoText)
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 44, height: 44)
-                    .background(Color.picardoCard, in: Circle())
-                    .overlay(Circle().strokeBorder(Color.picardoBorder, lineWidth: 0.5))
-            }
-            .buttonStyle(PicardoPressStyle())
-            .accessibilityLabel(saved ? "Remove from saved" : "Save")
+                .accessibilityHidden(true)
 
-            if !artwork.isSold {
-                Button {
-                    Haptics.tap()
-                    onBuy(artwork)
-                } label: {
-                    Text("Buy")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 22)
-                        .frame(height: 44)
-                        .background(Color.picardoNeonRed, in: Capsule())
-                }
-                .buttonStyle(PicardoPressStyle())
-                .accessibilityLabel("Buy \(artwork.title)")
-            }
-        }
-    }
-}
-
-// MARK: - Studio visit
-
-/// Artist of the Week as a short magazine feature: who, a line in their voice,
-/// three works, and a door into the studio.
-struct StudioVisitSection: View {
-    let feature: ArtistOfTheWeekFeature
-
-    private var works: [Artwork] {
-        guard let artist = feature.artist else { return [] }
-        return Array(Artwork.samples.filter { $0.artistName == artist.name }.prefix(3))
-    }
-
-    var body: some View {
-        if let artist = feature.artist {
-            VStack(alignment: .leading, spacing: 16) {
-                GallerySectionHeader(
-                    title: "Studio visit",
-                    reason: "This week\u{2019}s artist, in their own space"
-                )
-
-                NavigationLink(value: artist) {
-                    ZStack(alignment: .bottomLeading) {
-                        Color.picardoCard
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 420)
-                            .overlay {
-                                ArtworkImage(imageName: feature.portraitImage, contentMode: .fill, maxDimension: 1600)
-                                    .allowsHitTesting(false)
-                            }
-                            .clipped()
-                        LinearGradient(colors: [.clear, .black.opacity(0.65)], startPoint: .center, endPoint: .bottom)
-                            .allowsHitTesting(false)
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("ARTIST OF THE WEEK")
-                                .font(PicardoType.meta(9))
-                                .kerning(1.4)
-                                .foregroundStyle(.white.opacity(0.85))
-                            Text(artist.name)
-                                .font(.system(size: 30, weight: .black, design: .serif))
-                                .foregroundStyle(.white)
-                            Text("\u{201C}\(feature.blurb)\u{201D}")
-                                .font(.system(size: 15, design: .serif).italic())
-                                .foregroundStyle(.white.opacity(0.92))
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(20)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
-                    .contentShape(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .accessibilityLabel("Artist of the week: \(artist.name). \(feature.blurb)")
-                .accessibilityHint("Opens their studio")
-
-                // Always a matching row of three, or nothing, never one stretched tile.
-                if works.count >= 3 {
-                    HStack(spacing: 10) {
-                        ForEach(works) { work in
-                            NavigationLink(value: work) {
-                                GalleryArtworkTile(artwork: work, radius: GalleryRadius.small, inset: 9, maxDimension: 500)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 118)
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel("\(work.title) by \(work.artistName)")
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                }
-
-                NavigationLink(value: artist) {
-                    HStack(spacing: 6) {
-                        Text("Visit \(artist.name.split(separator: " ").first.map(String.init) ?? artist.name)\u{2019}s studio")
-                        Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
-                    }
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color.picardoText)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                    .background(Color.picardoCard, in: Capsule())
-                    .overlay(Capsule().strokeBorder(Color.picardoBorder, lineWidth: 1))
-                }
-                .buttonStyle(PicardoPressStyle())
-                .padding(.horizontal, 16)
-            }
-        }
-    }
-}
-
-// MARK: - Feed card
-
-/// A listing in the studios' feed: the whole piece at its own proportions, edge to
-/// edge, with a wall label underneath. No mat, no grey box.
-struct GalleryFeedCard: View {
-    let artwork: Artwork
-    let isSaved: Bool
-    let onSave: () -> Void
-    let onBuy: () -> Void
-
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            NavigationLink(value: artwork) {
-                GalleryArtworkTile(artwork: artwork)
-                    .frame(maxWidth: .infinity)
-                    .aspectRatio(4.0 / 5.0, contentMode: .fit)
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(artwork.title) by \(artwork.artistName)")
-
-            HStack(alignment: .center, spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(artwork.artistName)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.picardoText)
-                    Text(artwork.title)
-                        .font(.system(size: 18, weight: .semibold, design: .serif).italic())
-                        .foregroundStyle(Color.picardoText)
-                        .lineLimit(2)
-                    Text(artwork.price, format: .currency(code: "USD").precision(.fractionLength(0)))
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color.picardoText)
-                        .padding(.top, 2)
-                }
                 Spacer(minLength: 8)
-                Button(action: onSave) {
-                    Image(systemName: isSaved ? "heart.fill" : "heart")
-                        .font(.system(size: 19, weight: .medium))
-                        .foregroundStyle(isSaved ? Color.picardoNeonRed : Color.picardoText)
+
+                Button {
+                    withAnimation(PicardoMotion.quick) { wishlist.toggle(artwork) }
+                } label: {
+                    Image(systemName: saved ? "heart.fill" : "heart")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(Color.picardoText)
                         .contentTransition(.symbolEffect(.replace))
                         .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
+                .buttonStyle(PicardoPressStyle())
+                .sensoryFeedback(.selection, trigger: saved)
+                .accessibilityLabel(saved ? "Remove from saved" : "Save")
+
                 if !artwork.isSold {
                     Button {
                         Haptics.tap()
                         onBuy()
                     } label: {
                         Text("Buy")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(.body.weight(.semibold))
                             .foregroundStyle(.white)
-                            .padding(.horizontal, 18)
-                            .frame(height: 38)
-                            .background(Color.picardoNeonRed, in: Capsule())
+                            .padding(.horizontal, 22)
+                            .frame(height: 44)
+                            .background(Capsule().fill(Color.picardoNeonRed))
                     }
                     .buttonStyle(PicardoPressStyle())
                     .accessibilityLabel("Buy \(artwork.title)")
@@ -358,86 +407,533 @@ struct GalleryFeedCard: View {
     }
 }
 
-// MARK: - Reading
+// MARK: - Tile
 
-/// Articles as a quiet reading list, not another carousel.
-struct ReadingList: View {
-    let articles: [HomeArticle]
+/// A shelf or grid tile: the image at a fixed ratio, plain text underneath.
+struct HomeArtworkTile: View {
+    let artwork: Artwork
+    var width: CGFloat? = nil
+    var ratio: CGFloat = 3.0 / 4.0
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: HomeLayout.tileRadius, style: .continuous)
+    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ForEach(Array(articles.prefix(3).enumerated()), id: \.element.id) { i, article in
-                NavigationLink(value: article) {
-                    HStack(alignment: .top, spacing: 14) {
-                        Text(String(format: "%02d", i + 1))
-                            .font(.system(size: 22, weight: .black, design: .serif))
-                            .foregroundStyle(Color.picardoTextSecondary.opacity(0.6))
-                            .frame(width: 34, alignment: .leading)
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(article.title)
-                                .font(.system(size: 17, weight: .bold, design: .serif))
-                                .foregroundStyle(Color.picardoText)
-                                .multilineTextAlignment(.leading)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text("\(article.author) \u{00B7} \(article.readTime)")
-                                .font(.system(size: 13))
-                                .foregroundStyle(Color.picardoTextSecondary)
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(Color.picardoTextSecondary)
-                            .padding(.top, 4)
+        NavigationLink(value: artwork) {
+            VStack(alignment: .leading, spacing: 8) {
+                Color.picardoCard
+                    .aspectRatio(ratio, contentMode: .fit)
+                    .overlay {
+                        ArtworkImage(artwork: artwork, contentMode: .fill, maxDimension: 600)
+                            .allowsHitTesting(false)
                     }
-                    .padding(.vertical, 14)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
+                    .clipShape(shape)
+                    .contentShape(shape)
+                    .homeZoomSource(artwork.id)
 
-                if i < min(articles.count, 3) - 1 {
-                    Divider().padding(.leading, 48)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(artwork.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .lineLimit(1)
+                    Text(artwork.artistName)
+                        .font(.footnote)
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .lineLimit(1)
+                    Text(artwork.isSold ? "Sold" : artwork.price.formatted(.currency(code: "USD").precision(.fractionLength(0))))
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(artwork.isSold ? Color.picardoTextSecondary : Color.picardoText)
+                        .padding(.top, 2)
+                }
+            }
+            .frame(width: width)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(artwork.title) by \(artwork.artistName), \(artwork.isSold ? "sold" : artwork.price.formatted(.currency(code: "USD").precision(.fractionLength(0))))")
+    }
+}
+
+// MARK: - For you
+
+/// The personal marketplace shelf. Collectors see pieces in their mediums and budget;
+/// artists see work by people who make what they make.
+struct HomeForYouShelf: View {
+    let role: PicartdoRole?
+    let mediums: Set<ArtCategory>
+    let budget: CollectorBudget?
+    let picks: [Artwork]
+
+    private var isArtist: Bool { role == .artist }
+
+    /// Pieces in their mediums (and budget, for collectors), most loved first.
+    static func picks(
+        role: PicartdoRole?,
+        mediums: Set<ArtCategory>,
+        budget: CollectorBudget?,
+        excluding: Set<Artwork.ID>
+    ) -> [Artwork] {
+        let available = Artwork.samples.filter { !$0.isSold && !excluding.contains($0.id) }
+        let inMedium = mediums.isEmpty ? available : available.filter { mediums.contains($0.category) }
+        let inBudget = role == .artist ? inMedium : inMedium.filter { fits($0.price, budget: budget) }
+        // Never an empty shelf: loosen budget first, then medium.
+        let pool = inBudget.count >= 4 ? inBudget : (inMedium.count >= 4 ? inMedium : available)
+        return Array(pool.sorted { $0.likeCount > $1.likeCount }.prefix(10))
+    }
+
+    private static func fits(_ price: Double, budget: CollectorBudget?) -> Bool {
+        switch budget {
+        case .under500:  price < 500
+        case .upTo2000:  price <= 2000
+        case .statement: price >= 2000
+        case .browsing, nil: true
+        }
+    }
+
+    private var reason: String {
+        let names = ArtCategory.allCases.filter(mediums.contains).prefix(2).map(\.rawValue)
+        if isArtist {
+            return names.isEmpty ? "Artists working the way you do" : "Artists working in " + names.joined(separator: " and ").lowercased()
+        }
+        var line = names.isEmpty ? "Popular with collectors" : names.joined(separator: " and ")
+        if let budget, budget != .browsing { line += ", " + budget.price.lowercased() }
+        return line
+    }
+
+    var body: some View {
+        if !picks.isEmpty {
+            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                HomeSectionHeader(title: isArtist ? "From artists like you" : "For you", reason: reason)
+                HomeShelf {
+                    ForEach(picks) { artwork in
+                        HomeArtworkTile(artwork: artwork, width: 150)
+                    }
                 }
             }
         }
-        .padding(.horizontal, 16)
-        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: GalleryRadius.large, style: .continuous).strokeBorder(Color.picardoBorder, lineWidth: 0.5))
-        .padding(.horizontal, 16)
     }
 }
 
-// MARK: - One way to show art
+// MARK: - Posts from people you follow
 
-/// The single rule for artwork on Home: every piece hangs on the same wall (same
-/// colour, same margin, same soft shadow), whole and never cropped. Pieces
-/// photographed with a mat and pieces without one then read as one collection.
-enum GalleryRadius {
-    /// Heroes, features, feed tiles, videos, list cards.
-    static let large: CGFloat = 24
-    /// Thumbnails and small tiles.
-    static let small: CGFloat = 12
-}
+/// One post layout for everything: who, the media, the piece it shows, actions, caption.
+struct HomePostCard: View {
+    let post: ArtistPost
+    var onNotForMe: () -> Void = {}
 
-struct GalleryArtworkTile: View {
-    let artwork: Artwork
-    var radius: CGFloat = GalleryRadius.large
-    /// Space between the piece and the edge of the wall.
-    var inset: CGFloat = 26
-    var maxDimension: CGFloat = 1400
+    @Environment(\.feedVideoEnabled) private var feedVideoEnabled
+    @State private var isVisible = false
+    @State private var liked = false
+    @State private var saved = false
+    @State private var showMessage = false
+
+    private var mediaShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: HomeLayout.heroRadius, style: .continuous)
+    }
+
+    private var firstName: String {
+        post.artist.name.components(separatedBy: " ").first ?? post.artist.name
+    }
 
     var body: some View {
-        Color.picardoCard
-            .overlay {
-                ArtworkImage(artwork: artwork, contentMode: .fit, maxDimension: maxDimension)
-                    .shadow(color: .black.opacity(0.18), radius: inset * 0.4, y: inset * 0.25)
-                    .padding(inset)
-                    .allowsHitTesting(false)
+        VStack(alignment: .leading, spacing: 10) {
+            header
+            media
+            if let listing = post.listing {
+                shopTag(listing)
             }
-            .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .strokeBorder(Color.picardoBorder, lineWidth: 0.5)
-            )
-            .contentShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            actions
+            Text("\(Text(firstName).fontWeight(.semibold)) \(post.caption)")
+                .font(.subheadline)
+                .foregroundStyle(Color.picardoText)
+                .lineLimit(2)
+        }
+        .messageComposer(isPresented: $showMessage, artist: post.artist)
     }
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            NavigationLink(value: post.artist) {
+                HStack(spacing: 10) {
+                    ArtworkImage(imageName: post.artist.avatarImage, contentMode: .fill, maxDimension: 120)
+                        .frame(width: 32, height: 32)
+                        .clipShape(Circle())
+                    Text(post.artist.name)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.picardoText)
+                    if post.artist.verified {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.picardoText)
+                            .accessibilityLabel("Verified")
+                    }
+                }
+            }
+            .buttonStyle(.plain)
+
+            Text("\u{00B7} \(post.timeAgo)")
+                .font(.subheadline)
+                .foregroundStyle(Color.picardoTextSecondary)
+
+            Spacer(minLength: 8)
+
+            Menu {
+                Button {
+                    showMessage = true
+                } label: {
+                    Label("Message \(firstName)", systemImage: "envelope")
+                }
+                Button(role: .destructive, action: onNotForMe) {
+                    Label("Not for me", systemImage: "eye.slash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("More options")
+        }
+    }
+
+    private var media: some View {
+        Color.picardoCard
+            .aspectRatio(4.0 / 5.0, contentMode: .fit)
+            .overlay {
+                if post.isVideo {
+                    LoopingPostVideo(
+                        resourceName: post.videoName ?? post.imageName,
+                        fallbackImageName: post.imageName,
+                        fill: true
+                    )
+                    // Only the post that's mostly on screen plays.
+                    .environment(\.feedVideoEnabled, feedVideoEnabled && isVisible)
+                } else {
+                    ArtworkImage(imageName: post.imageName, contentMode: .fill, maxDimension: 1400)
+                }
+            }
+            .clipShape(mediaShape)
+            .onScrollVisibilityChange(threshold: 0.75) { isVisible = $0 }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(post.isVideo ? "Video by \(post.artist.name)" : "Photo by \(post.artist.name)")
+    }
+
+    private func shopTag(_ listing: Artwork) -> some View {
+        NavigationLink(value: listing) {
+            HStack(spacing: 12) {
+                ArtworkImage(artwork: listing, contentMode: .fill, maxDimension: 160)
+                    .frame(width: 40, height: 40)
+                    .clipShape(RoundedRectangle(cornerRadius: HomeLayout.thumbRadius, style: .continuous))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(listing.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .lineLimit(1)
+                    Text(listing.isSold ? "Sold" : "Available")
+                        .font(.footnote)
+                        .foregroundStyle(Color.picardoTextSecondary)
+                }
+                Spacer(minLength: 8)
+                if !listing.isSold {
+                    Text(listing.price, format: .currency(code: "USD").precision(.fractionLength(0)))
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.picardoText)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(Color.picardoTextSecondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(listing.title), \(listing.isSold ? "sold" : listing.price.formatted(.currency(code: "USD").precision(.fractionLength(0))))")
+        .accessibilityHint("Opens the listing")
+    }
+
+    private var actions: some View {
+        HStack(spacing: 20) {
+            Button {
+                liked.toggle()
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: liked ? "heart.fill" : "heart")
+                        .contentTransition(.symbolEffect(.replace))
+                    Text(count(post.likes + (liked ? 1 : 0)))
+                        .contentTransition(.numericText())
+                }
+            }
+            .sensoryFeedback(.selection, trigger: liked)
+            .accessibilityLabel(liked ? "Unlike" : "Like")
+            .accessibilityValue("\(post.likes + (liked ? 1 : 0)) likes")
+
+            HStack(spacing: 5) {
+                Image(systemName: "bubble.right")
+                Text(count(post.comments))
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(post.comments) comments")
+
+            Button {
+                showMessage = true
+            } label: {
+                Image(systemName: "paperplane")
+            }
+            .accessibilityLabel("Message \(firstName)")
+
+            Spacer()
+
+            Button {
+                saved.toggle()
+            } label: {
+                Image(systemName: saved ? "bookmark.fill" : "bookmark")
+                    .contentTransition(.symbolEffect(.replace))
+            }
+            .sensoryFeedback(.selection, trigger: saved)
+            .accessibilityLabel(saved ? "Remove from saved" : "Save")
+        }
+        .font(.body.weight(.medium))
+        .foregroundStyle(Color.picardoText)
+        .buttonStyle(.plain)
+        .frame(minHeight: 32)
+    }
+
+    private func count(_ n: Int) -> String {
+        n >= 1000 ? String(format: "%.1fk", Double(n) / 1000) : "\(n)"
+    }
+}
+
+// MARK: - Studio visit
+
+/// The editorial moment: this week's artist, in their space, in their words.
+struct HomeStudioVisit: View {
+    let feature: ArtistOfTheWeekFeature
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: HomeLayout.heroRadius, style: .continuous)
+    }
+
+    var body: some View {
+        if let artist = feature.artist {
+            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                HomeSectionHeader(title: "Studio visit", reason: "This week\u{2019}s artist, in their own space")
+
+                NavigationLink(value: artist) {
+                    Color.picardoCard
+                        .aspectRatio(4.0 / 5.0, contentMode: .fit)
+                        .overlay {
+                            ArtworkImage(imageName: feature.portraitImage, contentMode: .fill, maxDimension: 1600)
+                                .allowsHitTesting(false)
+                        }
+                        .overlay(alignment: .bottom) {
+                            LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 260)
+                                .allowsHitTesting(false)
+                        }
+                        .overlay(alignment: .bottomLeading) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Artist of the week")
+                                    .font(.caption.weight(.semibold))
+                                    .textCase(.uppercase)
+                                    .kerning(0.6)
+                                    .foregroundStyle(.white.opacity(0.8))
+                                Text(artist.name)
+                                    .font(.system(.largeTitle, design: .serif).weight(.bold))
+                                    .foregroundStyle(.white)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
+                                Text("\u{201C}\(feature.blurb)\u{201D}")
+                                    .font(.system(.body, design: .serif).italic())
+                                    .foregroundStyle(.white.opacity(0.92))
+                                    .lineLimit(3)
+                                HStack(spacing: 4) {
+                                    Text("Visit the studio")
+                                    Image(systemName: "chevron.right").imageScale(.small)
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .padding(.top, 4)
+                            }
+                            .padding(20)
+                        }
+                        .clipShape(shape)
+                        .contentShape(shape)
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, HomeLayout.margin)
+                .accessibilityLabel("Studio visit: \(artist.name). \(feature.blurb)")
+                .accessibilityHint("Opens their studio")
+            }
+        }
+    }
+}
+
+// MARK: - Events
+
+struct HomeEventsShelf: View {
+    let events: [ArtEventItem]
+    let city: String
+
+    var body: some View {
+        if !events.isEmpty {
+            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                HomeSectionHeader(title: "This week near you", reason: "Exhibitions, talks and live events in \(city)") {
+                    HomeSeeAll(value: CityEventsList())
+                }
+                HomeShelf {
+                    ForEach(events) { event in
+                        NavigationLink(value: event) {
+                            HomeEventTile(event: event)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private struct HomeEventTile: View {
+    let event: ArtEventItem
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: HomeLayout.tileRadius, style: .continuous)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Color.picardoCard
+                .aspectRatio(16.0 / 10.0, contentMode: .fit)
+                .overlay {
+                    ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 700)
+                        .allowsHitTesting(false)
+                }
+                .overlay(alignment: .topLeading) {
+                    Text("\(event.month) \(event.day)")
+                        .font(.caption2.weight(.bold))
+                        .textCase(.uppercase)
+                        .foregroundStyle(Color.picardoText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.picardoBackground))
+                        .padding(10)
+                }
+                .clipShape(shape)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(event.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.picardoText)
+                    .lineLimit(2, reservesSpace: true)
+                    .multilineTextAlignment(.leading)
+                Text("\(event.type) \u{00B7} \(event.isFree ? "Free" : event.priceLabel)")
+                    .font(.footnote)
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: 260)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Reading
+
+struct HomeReadingList: View {
+    let articles: [HomeArticle]
+
+    var body: some View {
+        if !articles.isEmpty {
+            VStack(alignment: .leading, spacing: HomeLayout.headerGap - 4) {
+                HomeSectionHeader(title: "Reading", reason: "Stories from the National Gallery of Art") {
+                    HomeSeeAll(value: HomeArticlesList())
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(articles.prefix(3).enumerated()), id: \.element.id) { i, article in
+                        if i > 0 {
+                            Divider().padding(.leading, 56 + 12)
+                        }
+                        NavigationLink(value: article) {
+                            row(article)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, HomeLayout.margin)
+            }
+        }
+    }
+
+    private func row(_ article: HomeArticle) -> some View {
+        HStack(spacing: 12) {
+            Color.picardoCard
+                .frame(width: 56, height: 56)
+                .overlay {
+                    if article.imageName.isEmpty {
+                        Image(systemName: "book.pages")
+                            .foregroundStyle(Color.picardoTextSecondary)
+                    } else {
+                        ArtworkImage(imageName: article.imageName, contentMode: .fill, maxDimension: 200)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: HomeLayout.thumbRadius, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(article.title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.picardoText)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+                Text("\(article.author) \u{00B7} \(article.readTime)")
+                    .font(.footnote)
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.picardoTextSecondary.opacity(0.6))
+        }
+        .padding(.vertical, 10)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Discover more
+
+/// The open-ended part of Home: a two-column grid of everything not shown above.
+struct HomeDiscoverGrid: View {
+    let artworks: [Artwork]
+
+    private let columns = [
+        GridItem(.flexible(), spacing: HomeLayout.itemGap, alignment: .top),
+        GridItem(.flexible(), spacing: HomeLayout.itemGap, alignment: .top),
+    ]
+
+    var body: some View {
+        if !artworks.isEmpty {
+            VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
+                HomeSectionHeader(title: "Discover more", reason: "New work from living artists")
+                LazyVGrid(columns: columns, spacing: 24) {
+                    ForEach(artworks) { artwork in
+                        HomeArtworkTile(artwork: artwork, ratio: 4.0 / 5.0)
+                    }
+                }
+                .padding(.horizontal, HomeLayout.margin)
+            }
+        }
+    }
+}
+
+// MARK: - Legacy radii
+
+/// Still used by the full events guide and the older post card outside Home's new layout.
+enum GalleryRadius {
+    static let large: CGFloat = 24
+    static let small: CGFloat = 12
 }

@@ -18,6 +18,8 @@ extension EnvironmentValues {
 struct LoopingPostVideo: View {
     let resourceName: String
     var fallbackImageName: String? = nil
+    /// Fill the frame (cropping) instead of letterboxing.
+    var fill: Bool = false
 
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.feedVideoEnabled) private var feedVideoEnabled
@@ -26,13 +28,13 @@ struct LoopingPostVideo: View {
     var body: some View {
         ZStack {
             if let fallbackImageName {
-                ArtworkImage(imageName: fallbackImageName, contentMode: .fit, maxDimension: 1400)
+                ArtworkImage(imageName: fallbackImageName, contentMode: fill ? .fill : .fit, maxDimension: 1400)
             } else {
                 Color.black
             }
 
             if isPlaying {
-                LoopingPostVideoPlayer(resourceName: resourceName)
+                LoopingPostVideoPlayer(resourceName: resourceName, fill: fill)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -50,6 +52,7 @@ struct LoopingPostVideo: View {
 
 private struct LoopingPostVideoPlayer: UIViewRepresentable {
     let resourceName: String
+    var fill: Bool = false
 
     func makeUIView(context: Context) -> LoopingPostVideoUIView {
         let view = LoopingPostVideoUIView()
@@ -57,6 +60,7 @@ private struct LoopingPostVideoPlayer: UIViewRepresentable {
         view.setContentHuggingPriority(.defaultLow, for: .vertical)
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
+        view.setFill(fill)
         view.load(resourceName: resourceName)
         return view
     }
@@ -92,6 +96,10 @@ final class LoopingPostVideoUIView: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func setFill(_ fill: Bool) {
+        playerLayer.videoGravity = fill ? .resizeAspectFill : .resizeAspect
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()

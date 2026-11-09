@@ -19,6 +19,8 @@ private enum PicassoPrefs {
 // MARK: - Small floating P button
 
 struct PicassoButton: View {
+    /// Sits inside a header row instead of floating over the page.
+    var inline = false
     @StateObject private var viewModel = ChatViewModel()
     @State private var isOpen = false
     @State private var appeared = false
@@ -48,8 +50,9 @@ struct PicassoButton: View {
                 .opacity(appeared ? 1 : 0)
         }
         .buttonStyle(.plain)
-        .padding(.top, 12)
-        .padding(.trailing, 16)
+        .frame(minWidth: 44, minHeight: 44)
+        .padding(.top, inline ? 0 : 12)
+        .padding(.trailing, inline ? 0 : 16)
         .accessibilityLabel("Open Picasso, your art assistant")
         .accessibilityHint("Opens your art guide")
         .fullScreenCover(isPresented: $isOpen) {

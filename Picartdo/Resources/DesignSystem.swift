@@ -13,6 +13,29 @@ enum PicardoMotion {
     static let press = Animation.spring(response: 0.28, dampingFraction: 0.7)
 }
 
+// MARK: - Home layout
+//
+// The only spacing, radii and sizes the Home tab uses. One 8-point rhythm,
+// three concentric radii (hero > tile > thumb), the same margin on every edge.
+
+enum HomeLayout {
+    /// Screen edge to content, everywhere.
+    static let margin: CGFloat = 16
+    /// Between one section and the next, always the same.
+    static let sectionGap: CGFloat = 32
+    /// Section header to its content.
+    static let headerGap: CGFloat = 12
+    /// Between items in a shelf or grid.
+    static let itemGap: CGFloat = 12
+
+    /// Featured pieces, studio visit, post media.
+    static let heroRadius: CGFloat = 28
+    /// Shelf and grid tiles.
+    static let tileRadius: CGFloat = 16
+    /// Row thumbnails.
+    static let thumbRadius: CGFloat = 10
+}
+
 // MARK: - Card chrome
 //
 // Soft elevation, subtle border, 20pt radius. No heavy shadows.
