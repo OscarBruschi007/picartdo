@@ -397,7 +397,6 @@ struct HomeView: View {
     @State private var identity = ProfileIdentity.load()
     @State private var hiddenPosts: Set<String> = HiddenPosts.load()
     @State private var refreshCount = 0
-    @State private var feedTab: HomeFeedTab = .forYou
     @State private var showMessages = false
     @Namespace private var zoom
 
@@ -448,7 +447,7 @@ struct HomeView: View {
                     .ignoresSafeArea()
 
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                    LazyVStack(alignment: .leading, spacing: 0) {
 
                         // The top bar: Picasso, the name and date, messages.
                         HomeHeader(unreadMessages: unreadMessages, onMessages: { showMessages = true }) {
@@ -475,24 +474,11 @@ struct HomeView: View {
                         .padding(.top, 14)
                         .padding(.bottom, 8)
 
-                        Section {
-                            Group {
-                                switch feedTab {
-                                case .forYou:
-                                    forYouFeed(shelfPicks)
-                                case .following:
-                                    followingFeed
-                                }
-                            }
+                        homeFeedSections(shelfPicks)
                             .padding(.top, 20)
-                            .transition(.opacity)
-                        } header: {
-                            HomeFeedTabs(selection: $feedTab)
-                        }
                     }
                     .padding(.bottom, 110)
                     .animation(PicardoMotion.transition, value: hiddenPosts)
-                    .animation(PicardoMotion.quick, value: feedTab)
                 }
                 .scrollIndicators(.hidden)
                 .scrollEdgeEffectStyle(.soft, for: .top)
@@ -554,8 +540,8 @@ struct HomeView: View {
         }
     }
 
-    /// For you: the curated front page.
-    private func forYouFeed(_ shelfPicks: [Artwork]) -> some View {
+    /// Everything below the stories.
+    private func homeFeedSections(_ shelfPicks: [Artwork]) -> some View {
         VStack(alignment: .leading, spacing: HomeLayout.sectionGap) {
             // Inspire: one big moment.
             VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
@@ -592,29 +578,6 @@ struct HomeView: View {
             HomeReadingList(articles: featuredArticles)
             HomeDiscoverGrid(artworks: discoverArtworks(excluding: shelfPicks))
         }
-    }
-
-    /// Following: everything the people you follow have posted.
-    private var followingFeed: some View {
-        LazyVStack(spacing: HomeLayout.sectionGap) {
-            ForEach(allFollowingPosts) { post in
-                HomePostCard(post: post) { hide(post) }
-                    .transition(.opacity)
-            }
-        }
-        .padding(.horizontal, HomeLayout.margin)
-    }
-
-    /// Photos and studio videos, interleaved.
-    private var allFollowingPosts: [ArtistPost] {
-        let photos = ArtistPost.samples
-        let videos = homeFeed.studioVideos
-        var mixed: [ArtistPost] = []
-        for i in 0..<max(photos.count, videos.count) {
-            if i < photos.count { mixed.append(photos[i]) }
-            if i < videos.count { mixed.append(videos[i]) }
-        }
-        return mixed.filter { !hiddenPosts.contains($0.feedKey) }
     }
 
     private var unreadMessages: Int {

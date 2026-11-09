@@ -174,57 +174,6 @@ struct HomeHeader<Wordmark: View>: View {
     }
 }
 
-// MARK: - Feed tabs
-
-enum HomeFeedTab: String, CaseIterable, Identifiable {
-    case forYou = "For you"
-    case following = "Following"
-    var id: Self { self }
-}
-
-/// Two tabs with a sliding underline. Pinned under the status bar while you scroll.
-struct HomeFeedTabs: View {
-    @Binding var selection: HomeFeedTab
-    @Namespace private var underline
-
-    var body: some View {
-        HStack(spacing: 0) {
-            ForEach(HomeFeedTab.allCases) { tab in
-                let on = selection == tab
-                Button {
-                    guard !on else { return }
-                    Haptics.select()
-                    withAnimation(PicardoMotion.quick) { selection = tab }
-                } label: {
-                    VStack(spacing: 10) {
-                        Text(tab.rawValue)
-                            .font(.subheadline.weight(on ? .bold : .medium))
-                            .foregroundStyle(on ? Color.picardoText : Color.picardoTextSecondary)
-                        ZStack {
-                            Capsule().fill(.clear).frame(height: 4)
-                            if on {
-                                Capsule()
-                                    .fill(Color.picardoNeonRed)
-                                    .frame(width: 56, height: 4)
-                                    .matchedGeometryEffect(id: "underline", in: underline)
-                            }
-                        }
-                    }
-                    .padding(.top, 12)
-                    .frame(maxWidth: .infinity)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityAddTraits(on ? [.isSelected, .isButton] : .isButton)
-            }
-        }
-        .background(alignment: .bottom) {
-            Rectangle().fill(Color.picardoBorder).frame(height: 0.5)
-        }
-        .background(.bar)
-    }
-}
-
 // MARK: - Stories
 
 /// Everyone the same size. Unseen stories get a thin accent ring, seen ones a hairline.
