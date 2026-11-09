@@ -63,6 +63,13 @@ struct AuthRequiredSheet: View {
                     .padding(.bottom, 16)
             }
             .frame(maxWidth: .infinity)
+            .background {
+                // Someone at an easel, painting quietly behind the sign-in.
+                PainterBackgroundView()
+                    .frame(maxWidth: 380, maxHeight: 320)
+                    .opacity(0.13)
+                    .padding(.top, 120)
+            }
             .background(Color.picardoBackground.ignoresSafeArea())
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

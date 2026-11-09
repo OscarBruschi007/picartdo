@@ -1,4 +1,5 @@
 import SwiftUI
+import AuthenticationServices
 
 /// The opening, "The Blank Canvas".
 /// Every artist starts with a blank canvas; every collector with a blank wall.
@@ -7,8 +8,10 @@ import SwiftUI
 /// and sign their name. The answers personalize Picartdo from the first scroll.
 struct TasteOnboardingView: View {
     @Environment(TastePreferenceStore.self) private var tasteStore
+    @Environment(SessionStore.self) private var session
+    @Environment(\.colorScheme) private var colorScheme
 
-    enum Step: Hashable { case canvas, mediums, goals, signature, budget, reveal }
+    enum Step: Hashable { case canvas, mediums, goals, signature, budget, account, reveal }
 
     @State private var step: Step = .canvas
     @State private var forward = true
@@ -19,14 +22,37 @@ struct TasteOnboardingView: View {
     @State private var budget: CollectorBudget?
     @State private var artistName = ""
     @FocusState private var nameFocused: Bool
+    /// Decided once when the opening appears, so signing in mid-flow doesn't reshuffle the steps.
+    @State private var asksForAccount = true
+    @State private var accountError: String?
+    @State private var isSigningIn = false
 
     private var path: [Step] {
+        let steps: [Step]
         switch role {
-        case .collector: [.canvas, .mediums, .budget, .reveal]
-        case .artist:    [.canvas, .mediums, .goals, .signature, .reveal]
-        case .both:      [.canvas, .mediums, .goals, .signature, .budget, .reveal]
-        case nil:        [.canvas]
+        case .collector: steps = [.canvas, .mediums, .budget, .reveal]
+        case .artist:    steps = [.canvas, .mediums, .goals, .signature, .reveal]
+        case .both:      steps = [.canvas, .mediums, .goals, .signature, .budget, .reveal]
+        case nil:        return [.canvas]
         }
+        guard asksForAccount else { return steps }
+        return Array(steps.dropLast()) + [.account, .reveal]
+    }
+
+    private var hasPrimaryButton: Bool { step != .canvas && step != .account }
+
+    private var painterOpacity: Double {
+        switch step {
+        case .reveal:  0.28
+        case .account: 0.11 // lots of small text on this step
+        default:       0.16
+        }
+    }
+
+    /// The painting behind the steps fills in as the walk-through does.
+    private var painterProgress: Double {
+        guard role != nil, path.count > 1 else { return 0.08 }
+        return Double(stepIndex) / Double(path.count - 1)
     }
 
     private var stepIndex: Int { path.firstIndex(of: step) ?? 0 }
@@ -35,6 +61,15 @@ struct TasteOnboardingView: View {
         ZStack {
             Color.picardoBackground.ignoresSafeArea()
             PaperGrain().opacity(0.045).ignoresSafeArea()
+
+            // Someone at an easel; their painting fills in as the walk-through does.
+            // Sits above the Continue button so it never shows through it.
+            PainterBackgroundView(progress: painterProgress)
+                .frame(maxWidth: 380, maxHeight: 330)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.bottom, hasPrimaryButton ? 78 : 0)
+                .opacity(painterOpacity)
+                .animation(.easeInOut(duration: 0.8), value: step)
 
             VStack(spacing: 0) {
                 topBar
@@ -49,13 +84,14 @@ struct TasteOnboardingView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .clipped()
 
-                if step != .canvas {
+                if hasPrimaryButton {
                     primaryButton
                         .padding(.horizontal, 24)
                         .padding(.bottom, 12)
                 }
             }
         }
+        .onAppear { asksForAccount = !session.isAuthenticated }
     }
 
     // MARK: - Chrome
@@ -92,6 +128,7 @@ struct TasteOnboardingView: View {
         case .goals:     goalsStep
         case .signature: signatureStep
         case .budget:    budgetStep
+        case .account:   accountStep
         case .reveal:    revealStep
         }
     }
@@ -117,6 +154,7 @@ struct TasteOnboardingView: View {
         case .goals:     !goals.isEmpty
         case .signature: !artistName.trimmingCharacters(in: .whitespaces).isEmpty
         case .budget:    budget != nil
+        case .account:   true
         case .reveal:    true
         }
     }
@@ -272,6 +310,86 @@ struct TasteOnboardingView: View {
         }
     }
 
+    /// Registration: the first time through, we offer an account so the work they love,
+    /// the artists they follow and their studio are kept. Always skippable; guests can browse.
+    private var accountStep: some View {
+        StepScaffold(
+            title: role?.makesArt == true ? "Keep your studio." : "Keep your wall.",
+            subtitle: "Create your Picartdo account. Every piece of art tells a story, and this is where yours starts."
+        ) {
+            VStack(spacing: 10) {
+                AccountPerk(icon: "heart", title: "Save the work you love", detail: "Your wall follows you to every device.")
+                AccountPerk(icon: "person.2", title: "Follow and talk to artists", detail: "Message studios, ask about commissions.")
+                AccountPerk(icon: "paintpalette", title: role?.makesArt == true ? "Show and sell your art" : "Buy art safely",
+                            detail: role?.makesArt == true ? "Your studio, your prices, paid securely." : "Protected checkout, tracked delivery.")
+
+                SignInWithAppleButton(.signUp) { request in
+                    AppleSignInNonce.current = UUID().uuidString
+                    request.requestedScopes = [.fullName, .email]
+                } onCompletion: { result in
+                    Task { await createAccount(result) }
+                }
+                .signInWithAppleButtonStyle(colorScheme == .dark ? .white : .black)
+                .frame(height: 54)
+                .clipShape(Capsule())
+                .disabled(isSigningIn)
+                .opacity(isSigningIn ? 0.5 : 1)
+                .overlay { if isSigningIn { ProgressView() } }
+                .padding(.top, 18)
+                .accessibilityLabel("Sign up with Apple")
+
+                if let accountError {
+                    Label(accountError, systemImage: "exclamationmark.circle")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.picardoNeonRed)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .transition(.opacity)
+                }
+
+                Button {
+                    Haptics.tap()
+                    advance()
+                } label: {
+                    Text("Not now, just let me look around")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+
+                PicartdoLegalNote()
+                    .padding(.top, 4)
+            }
+            .animation(.easeOut(duration: 0.2), value: accountError)
+        }
+    }
+
+    private func createAccount(_ result: Result<ASAuthorization, Error>) async {
+        accountError = nil
+        if case .failure(let error) = result,
+           (error as? ASAuthorizationError)?.code == .canceled {
+            return // they closed the Apple sheet; nothing went wrong
+        }
+        guard AppConfig.isBackendConfigured else {
+            Haptics.error()
+            accountError = "Accounts aren\u{2019}t open yet. Keep exploring and sign in later from your profile."
+            return
+        }
+        isSigningIn = true
+        await session.signInWithApple(result: result)
+        isSigningIn = false
+        if session.isAuthenticated {
+            Haptics.success()
+            advance()
+        } else {
+            Haptics.error()
+            accountError = session.authError ?? "That didn\u{2019}t work. Try again."
+        }
+    }
+
     @ViewBuilder
     private var revealStep: some View {
         if role?.makesArt == true {
@@ -390,6 +508,41 @@ private struct StepScaffold<Content: View>: View {
             .padding(.bottom, 24)
         }
         .scrollDismissesKeyboard(.interactively)
+    }
+}
+
+// MARK: - Account perk
+
+private struct AccountPerk: View {
+    let icon: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(Color.picardoText)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Color.picardoText.opacity(0.06)))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(PicardoType.title(17))
+                    .foregroundStyle(Color.picardoText)
+                Text(detail)
+                    .font(PicardoType.body(13))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(Color.picardoCard, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.picardoBorder, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -793,4 +946,5 @@ private struct FlowTags: View {
 #Preview {
     TasteOnboardingView()
         .environment(TastePreferenceStore())
+        .environment(SessionStore())
 }
