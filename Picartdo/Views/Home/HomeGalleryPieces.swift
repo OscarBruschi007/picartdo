@@ -758,6 +758,7 @@ struct HomeStudioVisit: View {
 
 // MARK: - Events
 
+/// Things to go to: each card leads with a calendar date block, then what, where and how much.
 struct HomeEventsShelf: View {
     let events: [ArtEventItem]
     let city: String
@@ -765,7 +766,7 @@ struct HomeEventsShelf: View {
     var body: some View {
         if !events.isEmpty {
             VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
-                HomeSectionHeader(title: "This week near you", reason: "Exhibitions, talks and live events in \(city)") {
+                HomeSectionHeader(title: "Events near you", reason: "Exhibitions, talks and performances in \(city) this week") {
                     HomeSeeAll(value: CityEventsList())
                 }
                 HomeShelf {
@@ -789,40 +790,72 @@ private struct HomeEventTile: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Color.picardoCard
                 .aspectRatio(16.0 / 10.0, contentMode: .fit)
                 .overlay {
                     ArtworkImage(imageName: event.imageName, contentMode: .fill, maxDimension: 700)
                         .allowsHitTesting(false)
                 }
-                .overlay(alignment: .topLeading) {
-                    Text("\(event.month) \(event.day)")
-                        .font(.caption2.weight(.bold))
-                        .textCase(.uppercase)
-                        .foregroundStyle(Color.picardoText)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.picardoBackground))
+                .overlay(alignment: .topTrailing) {
+                    // What kind of event, so it never reads as an article.
+                    Label(event.type, systemImage: event.isExhibition ? "photo.artframe" : "ticket")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(.black.opacity(0.55)))
                         .padding(10)
                 }
                 .clipShape(shape)
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(event.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.picardoText)
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.leading)
-                Text("\(event.type) \u{00B7} \(event.isFree ? "Free" : event.priceLabel)")
+            HStack(alignment: .top, spacing: 12) {
+                // Calendar date block.
+                VStack(spacing: 0) {
+                    Text(event.month)
+                        .font(.caption2.weight(.bold))
+                        .foregroundStyle(Color.picardoNeonRed)
+                    Text(event.day)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color.picardoText)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.6)
+                }
+                .frame(width: 44, height: 48)
+                .background(
+                    RoundedRectangle(cornerRadius: HomeLayout.thumbRadius, style: .continuous)
+                        .fill(Color.picardoCard)
+                )
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(event.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .lineLimit(2, reservesSpace: true)
+                        .multilineTextAlignment(.leading)
+                    Label(event.venue, systemImage: "mappin.and.ellipse")
+                        .font(.footnote)
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        if !event.timeLabel.isEmpty {
+                            Text(event.timeLabel)
+                            Text("\u{00B7}")
+                        }
+                        Text(event.isFree ? "Free" : event.priceLabel)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.picardoText)
+                    }
                     .font(.footnote)
                     .foregroundStyle(Color.picardoTextSecondary)
                     .lineLimit(1)
+                }
             }
         }
-        .frame(width: 260)
+        .frame(width: 280)
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
+        .accessibilityLabel("Event: \(event.title), \(event.dateLabel), \(event.venue), \(event.isFree ? "free" : event.priceLabel)")
     }
 }
 
@@ -868,6 +901,10 @@ struct HomeReadingList: View {
             Text(Date().formatted(.dateTime.month(.wide).day()))
                 .font(.title.weight(.bold))
                 .foregroundStyle(Color.picardoTextSecondary)
+            Text("Articles and essays to read")
+                .font(.subheadline)
+                .foregroundStyle(Color.picardoTextSecondary)
+                .padding(.top, 4)
             HomeSeeAll(value: HomeArticlesList())
         }
         .frame(maxWidth: .infinity)
@@ -877,7 +914,7 @@ struct HomeReadingList: View {
 
     private func source(_ article: HomeArticle) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "building.columns.fill")
+            Image(systemName: "newspaper")
                 .font(.footnote)
             Text(article.kicker)
                 .font(.subheadline.weight(.bold))
@@ -887,10 +924,15 @@ struct HomeReadingList: View {
     }
 
     private func byline(_ article: HomeArticle) -> some View {
-        Text("\(article.author) \u{00B7} \(article.readTime) read")
-            .font(.footnote)
-            .foregroundStyle(Color.picardoTextSecondary)
-            .lineLimit(1)
+        HStack(spacing: 6) {
+            Text(article.author)
+                .lineLimit(1)
+            Text("\u{00B7}")
+            Label("\(article.readTime) read", systemImage: "book")
+                .lineLimit(1)
+        }
+        .font(.footnote)
+        .foregroundStyle(Color.picardoTextSecondary)
     }
 
     /// Top story: a big headline, then "More stories" listed inside the same card.
@@ -928,7 +970,7 @@ struct HomeReadingList: View {
                     if i > 0 { Divider().padding(.leading, 16 + 28) }
                     NavigationLink(value: article) {
                         HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "building.columns.fill")
+                            Image(systemName: "newspaper")
                                 .font(.footnote)
                                 .foregroundStyle(Color.picardoText)
                                 .frame(width: 18, height: 20)
@@ -960,7 +1002,16 @@ struct HomeReadingList: View {
                 .foregroundStyle(Color.picardoText)
                 .multilineTextAlignment(.leading)
                 .lineLimit(3)
-            byline(article)
+            HStack {
+                byline(article)
+                Spacer(minLength: 8)
+                HStack(spacing: 2) {
+                    Text("Read")
+                    Image(systemName: "chevron.right").imageScale(.small)
+                }
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.picardoText)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
