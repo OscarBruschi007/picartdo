@@ -30,14 +30,13 @@ final class HomeFeedStore {
     private var lastRefresh = Date.distantPast
     private let lastFeaturedKey = "picartdo.home.lastFeaturedImages"
     private let lastLayoutKey = "picartdo.home.lastLayout"
-    private let lastArtistOfTheWeekKey = "picartdo.home.lastArtistOfTheWeek"
 
     init() {
         featured = Artwork.samples[0]
         storyArtists = Self.storyCast
         moreListings = []
         studioVideos = ArtistPost.studioVideos
-        articles = Array(HomeArticle.samples.prefix(5))
+        articles = Array(HomeArticle.samples.prefix(4))
         cityEvents = Array(ArtEventItem.samples.prefix(3))
         layout = HomeLayoutBlock.allCases
         artistOfTheWeek = ArtistOfTheWeekFeature.current
@@ -68,7 +67,7 @@ final class HomeFeedStore {
         moreListings = rest
         studioVideos = ArtistPost.studioVideos.shuffled()
         storyArtists = Self.storyCast
-        articles = Array(HomeArticle.samples.shuffled().prefix(5))
+        articles = Array(HomeArticle.samples.shuffled().prefix(4))
         cityEvents = Self.homeEventPicks()
         layout = shuffledLayout()
         artistOfTheWeek = pickArtistOfTheWeek()
@@ -88,14 +87,17 @@ final class HomeFeedStore {
         moreListings = rankedByTaste(moreListings, taste: taste)
     }
 
+    /// The artist of the month: the same all month, rotating through the featured
+    /// artists who have enough work listed to fill the grid.
     private func pickArtistOfTheWeek() -> ArtistOfTheWeekFeature {
-        let pool = ArtistOfTheWeekFeature.roster
+        let pool = ArtistOfTheWeekFeature.roster.filter { feature in
+            guard let artist = feature.artist else { return false }
+            return Artwork.samples.filter { $0.artistName == artist.name }.count >= 3
+        }
         guard !pool.isEmpty else { return ArtistOfTheWeekFeature.current }
-        let last = UserDefaults.standard.string(forKey: lastArtistOfTheWeekKey)
-        let fresh = pool.filter { $0.portraitImage != last }
-        let pick = (fresh.isEmpty ? pool : fresh).randomElement() ?? pool[0]
-        UserDefaults.standard.set(pick.portraitImage, forKey: lastArtistOfTheWeekKey)
-        return pick
+        let month = Calendar.current.component(.month, from: Date())
+        let year = Calendar.current.component(.year, from: Date())
+        return pool[(year * 12 + month) % pool.count]
     }
 
     /// What Home's Exhibitions & Events card shows: the next two events coming up,

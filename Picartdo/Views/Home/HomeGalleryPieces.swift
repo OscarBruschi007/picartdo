@@ -691,68 +691,94 @@ struct HomePostCard: View {
     }
 }
 
-// MARK: - Studio visit
+// MARK: - Artists of the month
 
-/// The editorial moment: this week's artist, in their space, in their words.
+/// This month's featured artists as a 2×2 grid of people at work: the artist of the
+/// month in their studio, then three more caught mid-work. Each tile opens that artist.
 struct HomeStudioVisit: View {
     let feature: ArtistOfTheWeekFeature
 
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: HomeLayout.heroRadius, style: .continuous)
+    /// Studio photos that show the artist at work, in order of preference.
+    private static let atWork = ["studio_cubes", "studio_stretch", "studio_carry", "studio_hang"]
+
+    private var others: [(artist: Artist, photo: String)] {
+        let featured = feature.artist?.name
+        var seen = Set<String>()
+        var picks: [(artist: Artist, photo: String)] = []
+        for photo in Self.atWork {
+            guard let post = ArtistPost.studioVideos.first(where: { $0.imageName == photo }),
+                  post.artist.name != featured,
+                  post.artist.name != Artist.oscar.name || featured == nil,
+                  !seen.contains(post.artist.name) else { continue }
+            seen.insert(post.artist.name)
+            picks.append((post.artist, photo))
+        }
+        return Array(picks.prefix(3))
+    }
+
+    private var month: String {
+        Date().formatted(.dateTime.month(.wide))
     }
 
     var body: some View {
         if let artist = feature.artist {
             VStack(alignment: .leading, spacing: HomeLayout.headerGap) {
-                HomeSectionHeader(title: "Studio visit", reason: "This week\u{2019}s artist, in their own space")
+                HomeSectionHeader(title: "Artists of the month", reason: "\(month)\u{2019}s featured artists, in their own space")
 
-                NavigationLink(value: artist) {
-                    Color.picardoCard
-                        .aspectRatio(4.0 / 5.0, contentMode: .fit)
-                        .overlay {
-                            ArtworkImage(imageName: feature.portraitImage, contentMode: .fill, maxDimension: 1600)
-                                .allowsHitTesting(false)
-                        }
-                        .overlay(alignment: .bottom) {
-                            LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
-                                .frame(height: 260)
-                                .allowsHitTesting(false)
-                        }
-                        .overlay(alignment: .bottomLeading) {
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text("Artist of the week")
-                                    .font(.caption.weight(.semibold))
-                                    .textCase(.uppercase)
-                                    .kerning(0.6)
-                                    .foregroundStyle(.white.opacity(0.8))
-                                Text(artist.name)
-                                    .font(.system(.largeTitle, design: .serif).weight(.bold))
-                                    .foregroundStyle(.white)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
-                                Text("\u{201C}\(feature.blurb)\u{201D}")
-                                    .font(.system(.body, design: .serif).italic())
-                                    .foregroundStyle(.white.opacity(0.92))
-                                    .lineLimit(3)
-                                HStack(spacing: 4) {
-                                    Text("Visit the studio")
-                                    Image(systemName: "chevron.right").imageScale(.small)
-                                }
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.white)
-                                .padding(.top, 4)
-                            }
-                            .padding(20)
-                        }
-                        .clipShape(shape)
-                        .contentShape(shape)
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                    spacing: 8
+                ) {
+                    personTile(artist, photo: feature.portraitImage, isFeatured: true)
+                    ForEach(others, id: \.artist.id) { pick in
+                        personTile(pick.artist, photo: pick.photo, isFeatured: false)
+                    }
                 }
-                .buttonStyle(.plain)
                 .padding(.horizontal, HomeLayout.margin)
-                .accessibilityLabel("Studio visit: \(artist.name). \(feature.blurb)")
-                .accessibilityHint("Opens their studio")
             }
         }
+    }
+
+    private func personTile(_ artist: Artist, photo: String, isFeatured: Bool) -> some View {
+        NavigationLink(value: artist) {
+            Color.picardoCard
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    ArtworkImage(imageName: photo, contentMode: .fill, maxDimension: 900)
+                        .allowsHitTesting(false)
+                }
+                .overlay(alignment: .bottom) {
+                    LinearGradient(colors: [.clear, .black.opacity(0.7)], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 110)
+                        .allowsHitTesting(false)
+                }
+                .overlay(alignment: .bottomLeading) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        if isFeatured {
+                            Text("Artist of the month")
+                                .font(.caption2.weight(.semibold))
+                                .textCase(.uppercase)
+                                .kerning(0.6)
+                                .foregroundStyle(.white.opacity(0.85))
+                        }
+                        Text(artist.name)
+                            .font(.system(isFeatured ? .title3 : .headline, design: .serif).weight(.bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                        Text(artist.specialties.first ?? artist.tagline)
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.85))
+                            .lineLimit(1)
+                    }
+                    .padding(12)
+                }
+                .clipShape(RoundedRectangle(cornerRadius: HomeLayout.tileRadius, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: HomeLayout.tileRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isFeatured ? "Artist of the month: \(artist.name). \(feature.blurb)" : "\(artist.name), featured this month")
+        .accessibilityHint("Opens their studio")
     }
 }
 
@@ -856,169 +882,6 @@ private struct HomeEventTile: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Event: \(event.title), \(event.dateLabel), \(event.venue), \(event.isFree ? "free" : event.priceLabel)")
-    }
-}
-
-// MARK: - News
-
-/// The one part of Home set like a news app: a masthead with the name and today's date,
-/// a lead story card with more stories inside it, then single story cards.
-struct HomeReadingList: View {
-    let articles: [HomeArticle]
-
-    private var cardShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: HomeLayout.tileRadius + 4, style: .continuous)
-    }
-
-    var body: some View {
-        if let lead = articles.first {
-            VStack(spacing: HomeLayout.headerGap) {
-                masthead
-
-                VStack(spacing: HomeLayout.itemGap) {
-                    leadCard(lead, more: Array(articles.dropFirst().prefix(2)))
-                    ForEach(articles.dropFirst(3).prefix(2)) { article in
-                        NavigationLink(value: article) {
-                            storyCard(article)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, HomeLayout.margin)
-            }
-        }
-    }
-
-    private var masthead: some View {
-        VStack(spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("Picartdo")
-                    .font(.system(.title, design: .serif).weight(.black))
-                Text("News")
-                    .font(.title.weight(.bold))
-            }
-            .foregroundStyle(Color.picardoText)
-            Text(Date().formatted(.dateTime.month(.wide).day()))
-                .font(.title.weight(.bold))
-                .foregroundStyle(Color.picardoTextSecondary)
-            Text("Articles and essays to read")
-                .font(.subheadline)
-                .foregroundStyle(Color.picardoTextSecondary)
-                .padding(.top, 4)
-            HomeSeeAll(value: HomeArticlesList())
-        }
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .contain)
-        .padding(.horizontal, HomeLayout.margin)
-    }
-
-    private func source(_ article: HomeArticle) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "newspaper")
-                .font(.footnote)
-            Text(article.kicker)
-                .font(.subheadline.weight(.bold))
-                .lineLimit(1)
-        }
-        .foregroundStyle(Color.picardoText)
-    }
-
-    private func byline(_ article: HomeArticle) -> some View {
-        HStack(spacing: 6) {
-            Text(article.author)
-                .lineLimit(1)
-            Text("\u{00B7}")
-            Label("\(article.readTime) read", systemImage: "book")
-                .lineLimit(1)
-        }
-        .font(.footnote)
-        .foregroundStyle(Color.picardoTextSecondary)
-    }
-
-    /// Top story: a big headline, then "More stories" listed inside the same card.
-    private func leadCard(_ lead: HomeArticle, more: [HomeArticle]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            NavigationLink(value: lead) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Top Story")
-                        .font(.caption.weight(.bold))
-                        .textCase(.uppercase)
-                        .kerning(0.6)
-                        .foregroundStyle(Color.picardoNeonRed)
-                    source(lead)
-                    Text(lead.title)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(Color.picardoText)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                    byline(lead)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(16)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            if !more.isEmpty {
-                Divider().padding(.horizontal, 16)
-                Text("More Stories")
-                    .font(.headline)
-                    .foregroundStyle(Color.picardoText)
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                ForEach(Array(more.enumerated()), id: \.element.id) { i, article in
-                    if i > 0 { Divider().padding(.leading, 16 + 28) }
-                    NavigationLink(value: article) {
-                        HStack(alignment: .top, spacing: 10) {
-                            Image(systemName: "newspaper")
-                                .font(.footnote)
-                                .foregroundStyle(Color.picardoText)
-                                .frame(width: 18, height: 20)
-                            Text(article.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.picardoText)
-                                .multilineTextAlignment(.leading)
-                                .lineLimit(2)
-                            Spacer(minLength: 0)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.bottom, 4)
-            }
-        }
-        .background(Color.picardoCard)
-        .clipShape(cardShape)
-    }
-
-    private func storyCard(_ article: HomeArticle) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            source(article)
-            Text(article.title)
-                .font(.headline)
-                .foregroundStyle(Color.picardoText)
-                .multilineTextAlignment(.leading)
-                .lineLimit(3)
-            HStack {
-                byline(article)
-                Spacer(minLength: 8)
-                HStack(spacing: 2) {
-                    Text("Read")
-                    Image(systemName: "chevron.right").imageScale(.small)
-                }
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(Color.picardoText)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(Color.picardoCard)
-        .clipShape(cardShape)
-        .contentShape(cardShape)
-        .accessibilityElement(children: .combine)
     }
 }
 

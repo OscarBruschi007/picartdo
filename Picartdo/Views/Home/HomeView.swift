@@ -402,7 +402,6 @@ struct HomeView: View {
 
     private var featured: Artwork { homeFeed.featured }
     private var storyArtists: [Artist] { homeFeed.storyArtists }
-    private var featuredArticles: [HomeArticle] { homeFeed.articles }
     private var cityEvents: [ArtEventItem] { homeFeed.cityEvents }
 
     /// Tonight's piece: the featured work, then a few more to swipe through.
@@ -552,9 +551,8 @@ struct HomeView: View {
 
             HomeStudioVisit(feature: homeFeed.artistOfTheWeek)
 
-            // Explore: out into the city, reading, and everything else.
+            // Explore: out into the city, and everything else.
             HomeEventsShelf(events: cityEvents, city: city)
-            HomeReadingList(articles: featuredArticles)
             HomeDiscoverGrid(artworks: discoverArtworks)
         }
     }
