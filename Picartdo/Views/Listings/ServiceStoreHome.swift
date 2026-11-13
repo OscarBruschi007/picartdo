@@ -2,9 +2,8 @@ import SwiftUI
 
 // MARK: - Service store home
 //
-// One layout for every service category (Tattoo, Murals, Ceramics…): a hero,
-// search and filters, a nearby row, then the full store feed. Only the copy
-// and the photos change per category.
+// One layout for every service category: a compact header, search and filters,
+// then a vertical list of service cards. Only the copy and the photos change.
 //
 // Photo slots — drop images into Assets.xcassets with these names and they
 // appear automatically, no code changes needed. `{slug}` is the category's
@@ -16,6 +15,10 @@ import SwiftUI
 
 /// Studio photos for a service category, by asset-name convention.
 enum ServiceGallery {
+    private static let cacheLock = NSLock()
+    private static var studioCache: [String: [String]] = [:]
+    private static var heroCache: [String: String] = [:]
+
     /// The photo a store card leads with: a category studio photo when one exists,
     /// otherwise the artist's own cover.
     static func coverPhoto(for artist: Artist, in category: ServiceCategory) -> String {
@@ -29,22 +32,55 @@ enum ServiceGallery {
     }
 
     /// Hero still: `{slug}_studio_01` when present, otherwise `{slug}_hero`.
+    /// The asset lookup is cached so scrolling does not call `UIImage(named:)` per card.
     static func heroPhoto(for category: ServiceCategory) -> String {
-        if category == .wallpaper { return "wave_rainbow" }
-        let studio = "\(category.assetSlug)_studio_01"
-        return UIImage(named: studio) != nil ? studio : category.heroImageName
+        let key = category.id
+        cacheLock.lock()
+        if let cached = heroCache[key] {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+
+        let resolved: String
+        if category == .wallpaper {
+            resolved = "wave_rainbow"
+        } else {
+            let studio = "\(category.assetSlug)_studio_01"
+            resolved = UIImage(named: studio) != nil ? studio : category.heroImageName
+        }
+        cacheLock.lock()
+        heroCache[key] = resolved
+        cacheLock.unlock()
+        return resolved
     }
 
     /// A studio photo for this artist among `{slug}_studio_02…09`, the same one on every launch.
     static func studioPhoto(for artist: Artist, in category: ServiceCategory) -> String? {
         if category == .tattoo { return tattooPhotos[artist.name] ?? "tattoo_studio_04" }
-        let available = (2...9)
-            .map { String(format: "%@_studio_%02d", category.assetSlug, $0) }
-            .filter { UIImage(named: $0) != nil }
+        let available = cachedStudioPhotos(slug: category.assetSlug)
         guard !available.isEmpty else { return nil }
         // Deterministic pick: `hashValue` changes between launches.
         let seed = artist.name.unicodeScalars.reduce(0) { $0 &+ Int($1.value) }
         return available[seed % available.count]
+    }
+
+    /// Resolves which studio assets exist once per category, not once per row.
+    private static func cachedStudioPhotos(slug: String) -> [String] {
+        cacheLock.lock()
+        if let cached = studioCache[slug] {
+            cacheLock.unlock()
+            return cached
+        }
+        cacheLock.unlock()
+
+        let available = (2...9)
+            .map { String(format: "%@_studio_%02d", slug, $0) }
+            .filter { UIImage(named: $0) != nil }
+        cacheLock.lock()
+        studioCache[slug] = available
+        cacheLock.unlock()
+        return available
     }
 
     /// Hand-picked tattoo studio photos per artist.
@@ -95,7 +131,7 @@ extension ServiceCategory {
     /// One line under the hero title.
     var storeTagline: String {
         switch self {
-        case .tattoo:          return "Studios you can book — like a stay, for ink."
+        case .tattoo:          return "Studios you can book for custom ink."
         case .digitalArt:      return "Illustrators and designers taking commissions."
         case .mural:           return "Artists who paint walls, rooms and whole buildings."
         case .wallpaper:       return "Pattern designers for rooms, quiet or loud."
@@ -111,143 +147,239 @@ extension ServiceCategory {
     }
 }
 
-/// A service category's home — an Airbnb-style store feed.
+
+// MARK: - Motion
+//
+// One spring for the Services flow. Nothing here runs longer than 0.4s.
+// Reduce Motion falls back to a short fade.
+
+enum ServicesMotion {
+    static let spring = Animation.spring(response: 0.35, dampingFraction: 0.85)
+
+    static func animation(reduceMotion: Bool) -> Animation {
+        reduceMotion ? .easeOut(duration: 0.2) : spring
+    }
+}
+
+enum ServiceDeliveryFilter: String, CaseIterable, Identifiable {
+    case any = "Any"
+    case underWeek = "Under a week"
+    case oneToTwo = "1–2 weeks"
+    case twoToFour = "2–4 weeks"
+    case fourToSix = "4–6 weeks"
+    case session = "By session"
+
+    var id: String { rawValue }
+
+    func matches(_ deliveryText: String) -> Bool {
+        switch self {
+        case .any:
+            return true
+        case .underWeek:
+            return deliveryText.localizedCaseInsensitiveContains("day")
+        case .oneToTwo:
+            return deliveryText == "1–2 weeks"
+        case .twoToFour:
+            return deliveryText == "2–4 weeks"
+        case .fourToSix:
+            return deliveryText == "4–6 weeks"
+        case .session:
+            let text = deliveryText.lowercased()
+            return text.contains("min") || text.contains("hour")
+        }
+    }
+}
+
+/// A service category's home: compact header, filters, and a vertical list of services.
 struct ServiceStoreHomeView: View {
     let category: ServiceCategory
 
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var searchText = ""
-    @State private var filter = StoreFilter.all
-    @State private var saved: Set<UUID> = []
-    @State private var pageWidth: CGFloat = 390
+    @State private var chip = ServiceListChip.all
+    @State private var saved: Set<String> = []
+    @State private var isLoading = true
+    @State private var showFilters = false
+    @State private var appliedMin: Double = 0
+    @State private var appliedMax: Double = 1_000_000
+    @State private var appliedType = "Any"
+    @State private var appliedDelivery = ServiceDeliveryFilter.any
 
-    private enum StoreFilter: String, CaseIterable {
-        case all, nearby, top, open
+    private let tabBarClearance: CGFloat = 120
 
-        func label(noun: String) -> String {
-            switch self {
-            case .all:    return noun.prefix(1).uppercased() + noun.dropFirst()
-            case .nearby: return "Nearby"
-            case .top:    return "Top rated"
-            case .open:   return "Available"
+    private var trimmedQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var categoryListings: [ServiceListing] {
+        ServiceCatalog.browseListings(in: category)
+    }
+
+    /// Chips other than All, and search, replace the shelves with one grid.
+    private var showsGrid: Bool {
+        chip != .all || !trimmedQuery.isEmpty
+    }
+
+    private var shelves: [ServiceShelf] {
+        let pool = filtered
+        let rows: [(String, [ServiceListing])] = [
+            ("New on Picartdo", pool.filter { $0.reviewCount == 0 }),
+            ("Available now", pool.filter(\.isAvailableNow)),
+            ("Near you", pool.filter(\.isNearby)),
+            ("Under $100", pool.filter { $0.priceAmount < 100 })
+        ]
+        return rows.compactMap { title, items in
+            items.isEmpty ? nil : ServiceShelf(title: title, listings: items)
+        }
+    }
+
+    private var priceBounds: ClosedRange<Double> {
+        let prices = categoryListings.map { Double($0.priceAmount) }
+        guard let low = prices.min(), let high = prices.max() else { return 0...1 }
+        if high <= low { return low...(low + 1) }
+        return low...high
+    }
+
+    private var serviceTypes: [String] {
+        Array(Set(categoryListings.map(\.serviceType))).sorted()
+    }
+
+    private var filtersAreNarrowed: Bool {
+        let bounds = priceBounds
+        let minMoved = appliedMin > bounds.lowerBound + 0.5
+        let maxMoved = appliedMax < bounds.upperBound - 0.5 && appliedMax < 999_999
+        return minMoved || maxMoved || appliedType != "Any" || appliedDelivery != .any
+    }
+
+    private var filtered: [ServiceListing] {
+        let query = trimmedQuery.lowercased()
+        return categoryListings.filter { listing in
+            if !query.isEmpty {
+                let hit = listing.title.lowercased().contains(query)
+                    || listing.artist.name.lowercased().contains(query)
+                    || listing.artist.location.lowercased().contains(query)
+                    || listing.serviceType.lowercased().contains(query)
+                    || listing.artist.specialties.contains { $0.lowercased().contains(query) }
+                if !hit { return false }
             }
-        }
-
-        var icon: String {
-            switch self {
-            case .all:    return "storefront"
-            case .nearby: return "mappin"
-            case .top:    return "star.fill"
-            case .open:   return "checkmark.seal.fill"
+            switch chip {
+            case .all:
+                break
+            case .nearby:
+                if !listing.isNearby { return false }
+            case .top:
+                if listing.reviewCount == 0 || listing.rating < 4.8 { return false }
+            case .available:
+                if !listing.isAvailableNow { return false }
             }
+            if Double(listing.priceAmount) < appliedMin - 0.5 { return false }
+            if Double(listing.priceAmount) > appliedMax + 0.5 { return false }
+            if appliedType != "Any", listing.serviceType != appliedType { return false }
+            if !appliedDelivery.matches(listing.deliveryText) { return false }
+            return true
         }
     }
 
-    /// Artists in this category. Until a category has its own profiles, show the
-    /// wider roster so the page is never empty.
-    private var members: [Artist] {
-        let matched = Artist.all.filter { category.matches($0) }
-        return matched.isEmpty ? Array(Artist.all.prefix(8)) : matched
-    }
-
-    private var roster: [Artist] {
-        let q = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let searched = q.isEmpty ? members : members.filter {
-            $0.storeName.lowercased().contains(q)
-            || $0.name.lowercased().contains(q)
-            || $0.location.lowercased().contains(q)
-            || $0.tagline.lowercased().contains(q)
-            || $0.specialties.contains { $0.lowercased().contains(q) }
-        }
-        switch filter {
-        case .all:     return searched
-        case .nearby:  return searched.filter { !$0.location.lowercased().contains("remote") }
-        case .top:     return searched.filter { $0.rating >= 4.8 }.sorted { $0.rating > $1.rating }
-        case .open:    return searched.filter(\.availableForCommissions)
-        }
-    }
-
-    private var nearbyStores: [Artist] {
-        roster.filter { !$0.location.lowercased().contains("remote") }
+    private var resultKey: String {
+        filtered.map(\.id).joined(separator: "|")
     }
 
     var body: some View {
-        storePage
-    }
-
-    private var storePage: some View {
-        ScrollView(showsIndicators: false) {
+        GeometryReader { geo in
+            let cardWidth = max(120, (geo.size.width - 88) / 2)
+            ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
-                hero
+                header
 
                 if category == .liveEvent {
-                    // Art Exhibitions is about shows, not artist studios: real exhibitions,
-                    // events, tickets and visit info only.
                     ExhibitionsServiceSection()
-                        .padding(.top, 16)
-                        // Room for the floating tab bar.
-                        .padding(.bottom, 120)
+                        .padding(.top, 8)
+                        .padding(.bottom, tabBarClearance)
                 } else {
                     searchAndFilters
-                        .padding(.top, 16)
-                        .padding(.bottom, 22)
+                        .padding(.top, 14)
 
-                    if category == .wallpaper {
-                        WallpaperPackSection(pack: .waves)
-                            .padding(.bottom, 28)
+                    Group {
+                        if isLoading {
+                            skeleton(cardWidth: cardWidth)
+                                .padding(.top, 18)
+                                .transition(.opacity)
+                        } else {
+                            loadedList(cardWidth: cardWidth)
+                                .transition(.opacity)
+                        }
                     }
-
-                    if filter == .all, !nearbyStores.isEmpty {
-                        nearbyRow
-                            .padding(.bottom, 28)
-                    }
-
-                    storeFeed
-                        .padding(.bottom, 56)
+                    .animation(.easeOut(duration: reduceMotion ? 0.2 : 0.25), value: isLoading)
+                    .padding(.bottom, tabBarClearance)
                 }
             }
         }
-        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { pageWidth = $0 }
+        .scrollDismissesKeyboard(.interactively)
         .background(Color.picardoBackground.ignoresSafeArea())
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .sheet(isPresented: $showFilters) {
+            ServiceFiltersSheet(
+                priceBounds: priceBounds,
+                serviceTypes: serviceTypes,
+                minPrice: $appliedMin,
+                maxPrice: $appliedMax,
+                type: $appliedType,
+                delivery: $appliedDelivery
+            )
+        }
+        .navigationDestination(for: StudioDestination.self) { destination in
+            StudioPage(destination: destination)
+        }
+        .navigationDestination(for: ServiceShelf.self) { shelf in
+            ServiceShelfGrid(shelf: shelf, saved: $saved)
+        }
+        .task(id: category.id) {
+            guard category != .liveEvent else {
+                isLoading = false
+                return
+            }
+            isLoading = true
+            try? await Task.sleep(for: .milliseconds(220))
+            guard !Task.isCancelled else { return }
+            isLoading = false
+        }
+        }
     }
 
-    private var heroShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 28, style: .continuous)
-    }
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            Button {
+                Haptics.tap()
+                dismiss()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundStyle(Color.picardoText)
+                    .frame(width: 36, height: 36)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Back")
 
-    private var hero: some View {
-        Color.clear
-            .aspectRatio(16.0 / 9.0, contentMode: .fit)
-            .overlay {
-                LoopingHeroVideo(
-                    resourceName: category.heroImageName,
-                    fallbackImageName: ServiceGallery.heroPhoto(for: category)
-                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(category.tileTitle)
+                    .font(.system(size: 22, weight: .bold, design: .serif))
+                    .foregroundStyle(Color.picardoText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(category.storeTagline)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .lineLimit(1)
             }
-            .overlay {
-                VStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    VStack(spacing: 4) {
-                        Text(category.storeTitle)
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundStyle(.primary)
-                        Text(category.storeTagline)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .lineLimit(2)
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .picardoGlass(in: RoundedRectangle(cornerRadius: 22, style: .continuous), interactive: true)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(16)
-            }
-            .picardoGlassMedia(in: heroShape)
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, maxHeight: 120, alignment: .leading)
     }
 
     private var searchAndFilters: some View {
@@ -255,175 +387,449 @@ struct ServiceStoreHomeView: View {
             HStack(spacing: 10) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search \(category.storeNoun), cities, styles", text: $searchText)
+                TextField("Search services, artists, styles", text: $searchText)
                     .font(.system(size: 15))
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
+                if !searchText.isEmpty {
+                    Button {
+                        searchText = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.tertiary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
             .background(Color(.systemBackground), in: Capsule())
             .shadow(color: .black.opacity(0.10), radius: 6, y: 2)
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 16)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(StoreFilter.allCases, id: \.self) { item in
-                        AirbnbFilterPill(
-                            icon: item.icon,
-                            label: item.label(noun: category.storeNoun),
-                            isSelected: filter == item
-                        ) { filter = item }
-                    }
-                }
-                .padding(.horizontal, 18)
-            }
-        }
-    }
-
-    private var nearbyRow: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("\(category.storeNoun.prefix(1).uppercased() + category.storeNoun.dropFirst()) nearby")
-                    .font(.system(size: 19, weight: .bold))
-                Text("Open to visit · in person")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 18)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(alignment: .top, spacing: 14) {
-                    ForEach(nearbyStores) { artist in
-                        NavigationLink(value: artist) {
-                            AirbnbStoreListingCard(
-                                artist: artist,
-                                photo: ServiceGallery.coverPhoto(for: artist, in: category),
-                                cardWidth: 280,
-                                isSaved: saved.contains(artist.id),
-                                onSave: { toggle(artist.id) }
-                            )
+                HStack(spacing: 8) {
+                    ForEach(ServiceListChip.allCases) { item in
+                        Button {
+                            Haptics.select()
+                            withAnimation(ServicesMotion.animation(reduceMotion: reduceMotion)) {
+                                chip = item
+                            }
+                        } label: {
+                            Text(item.rawValue)
+                                .font(.system(size: 13, weight: chip == item ? .semibold : .regular))
+                                .foregroundStyle(chip == item ? Color(.systemBackground) : Color.primary)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(chip == item ? Color.primary : Color(.systemGray6), in: Capsule())
                         }
                         .buttonStyle(.plain)
                     }
+                    Button {
+                        Haptics.tap()
+                        showFilters = true
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "slider.horizontal.3")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Filters")
+                                .font(.system(size: 13, weight: filtersAreNarrowed ? .semibold : .regular))
+                        }
+                        .foregroundStyle(filtersAreNarrowed ? Color(.systemBackground) : Color.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(filtersAreNarrowed ? Color.primary : Color(.systemGray6), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Filters")
                 }
-                .padding(.horizontal, 18)
+                .padding(.horizontal, 16)
+                .animation(ServicesMotion.animation(reduceMotion: reduceMotion), value: chip)
+                .animation(ServicesMotion.animation(reduceMotion: reduceMotion), value: filtersAreNarrowed)
             }
         }
     }
 
-    private var storeFeed: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            Text(filter == .all ? "Top rated \(category.storeNoun)" : filter.label(noun: category.storeNoun))
-                .font(.system(size: 19, weight: .bold))
-                .padding(.horizontal, 18)
+    @ViewBuilder
+    private func loadedList(cardWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 28) {
+            if category == .wallpaper {
+                WallpaperPackSection(pack: .waves)
+            }
 
-            if roster.isEmpty {
-                Text("No \(category.storeNoun) found")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.top, 24)
+            if categoryListings.isEmpty {
+                PicartdoEmptyState(
+                    icon: "paintbrush.pointed",
+                    title: "No services here yet.",
+                    message: "Be the first to offer one."
+                )
+                .padding(.top, 24)
+            } else if filtered.isEmpty {
+                PicartdoEmptyState(
+                    icon: "magnifyingglass",
+                    title: trimmedQuery.isEmpty ? "No matches" : "No matches for \u{201C}\(trimmedQuery)\u{201D}",
+                    message: "Try another search or filter."
+                )
+                .padding(.top, 24)
+            } else if showsGrid {
+                ServiceCardGrid(listings: filtered, saved: $saved, onToggle: toggle)
+                    .padding(.top, 8)
+                    .animation(ServicesMotion.animation(reduceMotion: reduceMotion), value: resultKey)
             } else {
-                LazyVStack(spacing: 22) {
-                    ForEach(roster) { artist in
-                        NavigationLink(value: artist) {
-                            AirbnbStoreListingCard(
-                                artist: artist,
-                                photo: ServiceGallery.coverPhoto(for: artist, in: category),
-                                cardWidth: max(pageWidth - 36, 0),
-                                isSaved: saved.contains(artist.id),
-                                onSave: { toggle(artist.id) }
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 18)
-                    }
+                ForEach(shelves) { shelf in
+                    shelfRow(shelf, cardWidth: cardWidth)
                 }
             }
         }
     }
 
-    private func toggle(_ id: UUID) {
+    private func shelfRow(_ shelf: ServiceShelf, cardWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                Text(shelf.title)
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(Color.picardoText)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                NavigationLink(value: shelf) {
+                    Image(systemName: "arrow.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .frame(width: 36, height: 36)
+                        .background(Color.picardoCard, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("See all \(shelf.title)")
+            }
+            .padding(.horizontal, 20)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 16) {
+                    ForEach(shelf.listings) { listing in
+                        ServiceListingCard(
+                            listing: listing,
+                            isSaved: saved.contains(listing.id),
+                            onSave: { toggle(listing.id) }
+                        )
+                        .frame(width: cardWidth)
+                        .scrollTransition(.animated(ServicesMotion.animation(reduceMotion: reduceMotion)), axis: .horizontal) { content, phase in
+                            content
+                                .opacity(phase.isIdentity ? 1 : 0.35)
+                                .offset(x: (reduceMotion || phase.isIdentity) ? 0 : 12)
+                        }
+                    }
+                }
+                .padding(.horizontal, 20)
+            }
+        }
+    }
+
+    private func skeleton(cardWidth: CGFloat) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 16) {
+                ForEach(0..<3, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: 8) {
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .fill(Color.picardoCardMid)
+                            .frame(width: cardWidth, height: cardWidth)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.picardoCardMid)
+                            .frame(width: cardWidth * 0.8, height: 14)
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .fill(Color.picardoCardMid)
+                            .frame(width: cardWidth * 0.55, height: 12)
+                    }
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+        .accessibilityLabel("Loading services")
+    }
+
+    private func toggle(_ id: String) {
         if saved.contains(id) { saved.remove(id) } else { saved.insert(id) }
     }
 }
 
-/// Store listing photo — liquid glass, no Instagram card corners.
-struct AirbnbStoreListingCard: View {
-    let artist: Artist
-    var photo: String? = nil
-    var cardWidth: CGFloat
-    let isSaved: Bool
-    let onSave: () -> Void
+private enum ServiceListChip: String, CaseIterable, Identifiable {
+    case all = "All"
+    case nearby = "Nearby"
+    case top = "Top rated"
+    case available = "Available now"
+    var id: String { rawValue }
+}
 
-    private var mediaShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 28, style: .continuous)
+private struct ServiceFiltersSheet: View {
+    let priceBounds: ClosedRange<Double>
+    let serviceTypes: [String]
+    @Binding var minPrice: Double
+    @Binding var maxPrice: Double
+    @Binding var type: String
+    @Binding var delivery: ServiceDeliveryFilter
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var draftMin: Double
+    @State private var draftMax: Double
+    @State private var draftType: String
+    @State private var draftDelivery: ServiceDeliveryFilter
+
+    init(
+        priceBounds: ClosedRange<Double>,
+        serviceTypes: [String],
+        minPrice: Binding<Double>,
+        maxPrice: Binding<Double>,
+        type: Binding<String>,
+        delivery: Binding<ServiceDeliveryFilter>
+    ) {
+        self.priceBounds = priceBounds
+        self.serviceTypes = serviceTypes
+        _minPrice = minPrice
+        _maxPrice = maxPrice
+        _type = type
+        _delivery = delivery
+        let lower = priceBounds.lowerBound
+        let upper = priceBounds.upperBound
+        let startingMin = min(max(minPrice.wrappedValue, lower), upper)
+        let startingMax = maxPrice.wrappedValue >= 999_999
+            ? upper
+            : min(max(maxPrice.wrappedValue, lower), upper)
+        _draftMin = State(initialValue: min(startingMin, startingMax))
+        _draftMax = State(initialValue: max(startingMin, startingMax))
+        _draftType = State(initialValue: type.wrappedValue)
+        _draftDelivery = State(initialValue: delivery.wrappedValue)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ArtworkImage(
-                imageName: photo ?? artist.storePhotos.first ?? artist.serviceCoverName,
-                contentMode: .fill,
-                maxDimension: 900
-            )
-            .frame(width: cardWidth, height: cardWidth)
-            .overlay {
-                VStack(spacing: 0) {
-                    HStack(spacing: 8) {
-                        if artist.rating >= 4.8 {
-                            Text("Guest favorite")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.primary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 6)
-                                .picardoGlass(in: Capsule(), interactive: true)
+        NavigationStack {
+            Form {
+                Section("Price range") {
+                    Text("From $\(Int(draftMin.rounded()))")
+                        .foregroundStyle(Color.picardoNeonRed)
+                    Slider(value: $draftMin, in: priceBounds)
+                        .onChange(of: draftMin) { _, newValue in
+                            if newValue > draftMax { draftMax = newValue }
                         }
-                        Spacer(minLength: 0)
-                        Button(action: onSave) {
-                            Image(systemName: isSaved ? "heart.fill" : "heart")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(isSaved ? Color.picardoNeonRed : .primary)
-                                .frame(width: 36, height: 36)
+                    Text("Up to $\(Int(draftMax.rounded()))")
+                        .foregroundStyle(Color.picardoNeonRed)
+                    Slider(value: $draftMax, in: priceBounds)
+                        .onChange(of: draftMax) { _, newValue in
+                            if newValue < draftMin { draftMin = newValue }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
-                        .picardoGlass(in: Circle(), interactive: true)
+                }
+                Section("Service type") {
+                    Picker("Service type", selection: $draftType) {
+                        Text("Any").tag("Any")
+                        ForEach(serviceTypes, id: \.self) { name in
+                            Text(name).tag(name)
+                        }
                     }
-                    Spacer(minLength: 0)
                 }
-                .padding(12)
+                Section("Delivery time") {
+                    Picker("Delivery time", selection: $draftDelivery) {
+                        ForEach(ServiceDeliveryFilter.allCases) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                }
             }
-            .picardoGlassMedia(in: mediaShape)
+            .navigationTitle("Filters")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Reset") {
+                        draftMin = priceBounds.lowerBound
+                        draftMax = priceBounds.upperBound
+                        draftType = "Any"
+                        draftDelivery = .any
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        minPrice = draftMin
+                        maxPrice = draftMax
+                        type = draftType
+                        delivery = draftDelivery
+                        dismiss()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+}
 
-            HStack(alignment: .top, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(artist.storeName)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                    Text(artist.hostedByLine)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                    Text(artist.location)
-                        .font(.system(size: 14))
-                        .foregroundStyle(.secondary)
-                    Text("\(Text("From \(artist.startingPrice)").fontWeight(.semibold))\(artist.availableForCommissions ? " · Available" : "")")
-                        .font(.system(size: 14))
-                        .foregroundStyle(.primary)
-                        .padding(.top, 2)
+struct ServiceShelf: Hashable, Identifiable {
+    let title: String
+    let listings: [ServiceListing]
+    var id: String { title }
+}
+
+struct ServiceListingCard: View {
+    let listing: ServiceListing
+    let isSaved: Bool
+    let onSave: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var mediaShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 20, style: .continuous)
+    }
+
+    private var destination: StudioDestination {
+        StudioDestination(artistName: listing.artist.name, serviceID: listing.id)
+    }
+
+    /// Available now wins. New only when the service has no reviews and is not available.
+    private var badge: String? {
+        if listing.isAvailableNow { return "Available now" }
+        if listing.reviewCount == 0 { return "New" }
+        return nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .topTrailing) {
+                NavigationLink(value: destination) {
+                    cover
                 }
-                Spacer(minLength: 8)
-                HStack(spacing: 3) {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 11))
-                    Text(String(format: "%.2f", artist.rating))
-                        .font(.system(size: 13, weight: .medium))
+                .buttonStyle(.plain)
+
+                Button {
+                    Haptics.tap()
+                    onSave()
+                } label: {
+                    Image(systemName: isSaved ? "heart.fill" : "heart")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(isSaved ? Color.picardoNeonRed : .white)
+                        .frame(width: 32, height: 32)
+                        .modifier(HeartBounce(isSaved: isSaved, reduceMotion: reduceMotion))
                 }
-                .foregroundStyle(.primary)
+                .buttonStyle(.plain)
+                .accessibilityLabel(isSaved ? "Remove from saved" : "Save")
+                .background(.black.opacity(0.28), in: Circle())
+                .padding(8)
             }
-            .frame(width: cardWidth, alignment: .leading)
+
+            NavigationLink(value: destination) {
+                details
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var cover: some View {
+        Color.picardoCardMid
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                GeometryReader { geo in
+                    ArtworkImage(imageName: listing.coverImageName, contentMode: .fill, maxDimension: 700)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .clipped()
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if let badge {
+                    Text(badge)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(.white, in: Capsule())
+                        .padding(8)
+                }
+            }
+            .clipShape(mediaShape)
+            .contentShape(mediaShape)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(listing.title)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(Color.picardoText)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 4) {
+                Text(listing.priceLabel)
+                    .foregroundStyle(Color.picardoNeonRed)
+                    .fontWeight(.semibold)
+                Text("·")
+                Text(listing.artist.name)
+                if listing.reviewCount > 0 {
+                    Text("·")
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 10))
+                    Text(String(format: "%.1f", listing.rating))
+                }
+            }
+            .font(.system(size: 13))
+            .foregroundStyle(Color.picardoTextSecondary)
+            .lineLimit(1)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+struct ServiceCardGrid: View {
+    let listings: [ServiceListing]
+    @Binding var saved: Set<String>
+    let onToggle: (String) -> Void
+
+    private let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
+    ]
+
+    var body: some View {
+        LazyVGrid(columns: columns, spacing: 16) {
+            ForEach(listings) { listing in
+                ServiceListingCard(
+                    listing: listing,
+                    isSaved: saved.contains(listing.id),
+                    onSave: { onToggle(listing.id) }
+                )
+            }
+        }
+        .padding(.horizontal, 20)
+    }
+}
+
+struct ServiceShelfGrid: View {
+    let shelf: ServiceShelf
+    @Binding var saved: Set<String>
+
+    private func toggle(_ id: String) {
+        if saved.contains(id) { saved.remove(id) } else { saved.insert(id) }
+    }
+
+    var body: some View {
+        ScrollView(showsIndicators: false) {
+            ServiceCardGrid(listings: shelf.listings, saved: $saved, onToggle: toggle)
+                .padding(.top, 12)
+                .padding(.bottom, 120)
+        }
+        .background(Color.picardoBackground.ignoresSafeArea())
+        .navigationTitle(shelf.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.visible, for: .navigationBar)
+        .navigationBarBackButtonHidden(false)
+        .picardoPushedScreen()
+    }
+}
+private struct HeartBounce: ViewModifier {
+    let isSaved: Bool
+    let reduceMotion: Bool
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.symbolEffect(.bounce, options: .speed(2), value: isSaved)
         }
     }
 }

@@ -220,7 +220,7 @@ struct AirbnbListingCard: View {
                     VStack(spacing: 0) {
                         HStack(spacing: 8) {
                             if artist.rating >= 4.8 {
-                                Text("Guest favorite")
+                                Text("Artist pick")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundStyle(.primary)
                                     .padding(.horizontal, 8)
@@ -261,7 +261,7 @@ struct AirbnbListingCard: View {
                     .foregroundStyle(.primary)
                 }
 
-                Text(artist.hostedByLine)
+                Text("By \(artist.firstName)")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)

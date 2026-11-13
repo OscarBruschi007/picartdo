@@ -17,6 +17,27 @@ enum ServiceCategory: String, CaseIterable, Identifiable, Hashable {
 
     var id: String { rawValue }
 
+    /// Label on the Services tab tiles. Matches the category name.
+    var tileTitle: String { rawValue }
+
+    /// Words stripped from a service title so it does not repeat the category.
+    var titleTokens: [String] {
+        switch self {
+        case .tattoo:          return ["Tattoo Art", "Tattoo"]
+        case .digitalArt:      return ["Digital Art", "Digital"]
+        case .mural:           return ["Wall Murals", "Murals", "Mural"]
+        case .wallpaper:       return ["Wallpapers", "Wallpaper"]
+        case .fashion:         return ["Wearable Art", "Wearable"]
+        case .paintingService: return ["Painting Services", "Painting"]
+        case .liveEvent:       return ["Art Exhibitions", "Exhibitions", "Exhibition"]
+        case .classes:         return ["Art Workshops", "Workshops", "Workshop"]
+        case .sculpture:       return ["Sculpture"]
+        case .ceramics:        return ["Ceramics & Pottery", "Ceramics", "Pottery"]
+        case .kidsWorkshop:    return ["Kids Workshops", "Kids"]
+        case .restoration:     return ["Art Restoration", "Restoration"]
+        }
+    }
+
     var emoji: String {
         switch self {
         case .tattoo:          return "🪡"
@@ -137,7 +158,7 @@ struct Service: Identifiable, Hashable {
         imageName: String,
         tags: [String] = [],
         isAvailable: Bool = true,
-        rating: Double = 5.0,
+        rating: Double = 0,
         reviewCount: Int = 0
     ) {
         self.id = id
@@ -165,7 +186,6 @@ extension Service {
             priceDisplay: "$150 / hr",
             imageName: "pencil.and.outline",
             tags: ["NYC", "Fine-Line", "Booking Open"],
-            rating: 4.9, reviewCount: 142
         ),
         Service(
             title: "Large-Scale Wall Mural",
@@ -175,7 +195,6 @@ extension Service {
             priceDisplay: "From $800",
             imageName: "building.2",
             tags: ["Miami", "Outdoor", "Commercial"],
-            rating: 5.0, reviewCount: 38
         ),
         Service(
             title: "Watercolour for Beginners",
@@ -185,7 +204,6 @@ extension Service {
             priceDisplay: "$60 / session",
             imageName: "books.vertical.fill",
             tags: ["Rome", "6 Weeks", "Materials Incl."],
-            rating: 4.8, reviewCount: 91
         ),
         Service(
             title: "Live Wedding Painting",
@@ -195,7 +213,6 @@ extension Service {
             priceDisplay: "From $1,200",
             imageName: "star.fill",
             tags: ["Destination", "Oil", "3-wk Delivery"],
-            rating: 5.0, reviewCount: 24
         ),
         Service(
             title: "Hand-Thrown Ceramic Vessels",
@@ -205,7 +222,6 @@ extension Service {
             priceDisplay: "$75 / session",
             imageName: "circle.dotted",
             tags: ["Copenhagen", "Groups", "Take-Home"],
-            rating: 4.9, reviewCount: 29
         ),
         Service(
             title: "Digital Illustration Commission",
@@ -215,7 +231,6 @@ extension Service {
             priceDisplay: "From $200",
             imageName: "laptopcomputer",
             tags: ["Remote", "48-hr Draft", "Print Ready"],
-            rating: 5.0, reviewCount: 110
         ),
         Service(
             title: "Art Restoration & Conservation",
@@ -225,7 +240,6 @@ extension Service {
             priceDisplay: "Quote on request",
             imageName: "wand.and.stars",
             tags: ["Paris", "Certified", "Insurance OK"],
-            rating: 5.0, reviewCount: 18
         ),
         Service(
             title: "Kids Art Party (Ages 5–12)",
@@ -235,7 +249,6 @@ extension Service {
             priceDisplay: "From $250 (up to 12 kids)",
             imageName: "paintpalette.fill",
             tags: ["At Your Venue", "All Ages", "Full Setup"],
-            rating: 4.8, reviewCount: 76
         ),
         Service(
             title: "Hand-Painted Denim Jacket",
@@ -245,7 +258,6 @@ extension Service {
             priceDisplay: "From $180",
             imageName: "tshirt.fill",
             tags: ["Athens", "Custom", "Washable"],
-            rating: 4.9, reviewCount: 33
         ),
         Service(
             title: "Commissioned Sculpture",
@@ -255,7 +267,6 @@ extension Service {
             priceDisplay: "From $1,400",
             imageName: "cube.fill",
             tags: ["Barcelona", "Studio", "Shipping"],
-            rating: 4.9, reviewCount: 28
         )
     ]
 }

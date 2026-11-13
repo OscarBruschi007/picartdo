@@ -64,7 +64,7 @@ final class HomeFeedStore {
         var rest = pool.filter { $0.imageName != featured.imageName }
         rest = weightedShuffle(rest, taste: taste)
 
-        moreListings = rest
+        moreListings = pinMurals(rest)
         studioVideos = ArtistPost.studioVideos.shuffled()
         storyArtists = Self.storyCast
         articles = Array(HomeArticle.samples.shuffled().prefix(4))
@@ -84,7 +84,14 @@ final class HomeFeedStore {
 
     func applyTaste(_ taste: TastePreferenceStore?) {
         guard let taste, !taste.categoryScores.isEmpty else { return }
-        moreListings = rankedByTaste(moreListings, taste: taste)
+        moreListings = pinMurals(rankedByTaste(moreListings, taste: taste))
+    }
+
+    /// The mural photos stay at the front of Home, ahead of the rest of the mix.
+    private func pinMurals(_ artworks: [Artwork]) -> [Artwork] {
+        let murals = artworks.filter { $0.imageName.hasPrefix("mural_") }
+        let others = artworks.filter { !$0.imageName.hasPrefix("mural_") }
+        return murals + others
     }
 
     /// The artist of the month: the same all month, rotating through the featured

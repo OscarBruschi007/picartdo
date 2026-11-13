@@ -56,7 +56,7 @@ struct Artist: Identifiable, Hashable {
         name.split(separator: " ").first.map(String.init) ?? name
     }
 
-    var hostedByLine: String { "Hosted by \(firstName)" }
+    var hostedByLine: String { "By \(firstName)" }
 
     /// Resolve a listing’s artist name to the catalog profile.
     static func named(_ name: String) -> Artist? {
@@ -445,11 +445,11 @@ extension Artist {
         Artist(name: "Omar Hassan", tagline: "Motion Graphics & Digital Art", bio: "Where digital illustration meets motion — looping art and animated prints.", location: "Dubai, AE", bannerImage: "art_15", avatarImage: "art_11", works: 72, followers: "8.9k", sales: "$47k", verified: true, availableForCommissions: true, rating: 4.9, reviewCount: 63, specialties: ["Digital", "Motion Graphics", "Animation"], startingPrice: "$350", portfolioImages: ["art_15", "art_11"]),
 
         // ── Wall Murals ───────────────────────────────────────────────
-        Artist(name: "Pedro Silva", tagline: "Tropical Mural & Street Art", bio: "Vivid tropical murals that transform urban spaces.", location: "Rio, BR", bannerImage: "art_19", avatarImage: "art_03", works: 65, followers: "7.2k", sales: "$58k", verified: true, availableForCommissions: true, rating: 4.9, reviewCount: 54, specialties: ["Mural", "Tropical", "Street Art"], startingPrice: "$700", portfolioImages: ["art_19", "art_03"]),
-        Artist(name: "Naomi Williams", tagline: "Community & Social Murals", bio: "Community-driven murals that tell neighbourhood stories.", location: "Chicago, US", bannerImage: "art_22", avatarImage: "art_17", works: 38, followers: "4.1k", sales: "$31k", verified: false, availableForCommissions: true, rating: 4.7, reviewCount: 29, specialties: ["Mural", "Community Art", "Social"], startingPrice: "$600", portfolioImages: ["art_22", "art_17"]),
-        Artist(name: "Zara Ahmed", tagline: "Geometric Mural & Pattern Art", bio: "Large-scale geometric patterns for commercial and residential walls.", location: "London, UK", bannerImage: "art_25", avatarImage: "art_08", works: 47, followers: "5.8k", sales: "$44k", verified: true, availableForCommissions: true, rating: 4.8, reviewCount: 41, specialties: ["Mural", "Geometric", "Pattern"], startingPrice: "$900", portfolioImages: ["art_25", "art_08"]),
+        Artist(name: "Pedro Silva", tagline: "Tropical Mural & Street Art", bio: "Vivid tropical murals that transform urban spaces.", location: "Rio, BR", bannerImage: "mural_03", avatarImage: "art_03", works: 65, followers: "7.2k", sales: "$58k", verified: true, availableForCommissions: true, rating: 4.9, reviewCount: 54, specialties: ["Mural", "Tropical", "Street Art"], startingPrice: "$700", portfolioImages: ["mural_01", "mural_03", "mural_05", "mural_06"]),
+        Artist(name: "Naomi Williams", tagline: "Community & Social Murals", bio: "Community-driven murals that tell neighbourhood stories.", location: "Chicago, US", bannerImage: "mural_04", avatarImage: "art_17", works: 38, followers: "4.1k", sales: "$31k", verified: false, availableForCommissions: true, rating: 4.7, reviewCount: 29, specialties: ["Mural", "Community Art", "Social"], startingPrice: "$600", portfolioImages: ["mural_02", "mural_04", "mural_07"]),
+        Artist(name: "Zara Ahmed", tagline: "Geometric Mural & Pattern Art", bio: "Large-scale geometric patterns for commercial and residential walls.", location: "London, UK", bannerImage: "mural_09", avatarImage: "art_08", works: 47, followers: "5.8k", sales: "$44k", verified: true, availableForCommissions: true, rating: 4.8, reviewCount: 41, specialties: ["Mural", "Geometric", "Pattern"], startingPrice: "$900", portfolioImages: ["mural_09", "mural_11", "mural_12", "mural_13", "mural_15"]),
         Artist(name: "Renzo Ferrari", tagline: "Classical Fresco & Mural", bio: "Renaissance-inspired fresco and decorative mural painting.", location: "Milan, IT", bannerImage: "art_10", avatarImage: "art_26", works: 29, followers: "2.3k", sales: "$72k", verified: true, availableForCommissions: false, rating: 5.0, reviewCount: 18, specialties: ["Mural", "Fresco", "Classical"], startingPrice: "$1,500", portfolioImages: ["art_10", "art_26"]),
-        Artist(name: "Kenji Nakamura", tagline: "Ink Mural & Japanese Motifs", bio: "Massive ink murals blending Japanese woodblock motifs with modern urban spaces.", location: "Tokyo, JP", bannerImage: "art_06", avatarImage: "art_24", works: 52, followers: "9.6k", sales: "$83k", verified: true, availableForCommissions: true, rating: 4.9, reviewCount: 67, specialties: ["Mural", "Japanese", "Ink"], startingPrice: "$1,100", portfolioImages: ["art_06", "art_24"]),
+        Artist(name: "Kenji Nakamura", tagline: "Ink Mural & Japanese Motifs", bio: "Massive ink murals blending Japanese woodblock motifs with modern urban spaces.", location: "Tokyo, JP", bannerImage: "mural_14", avatarImage: "art_24", works: 52, followers: "9.6k", sales: "$83k", verified: true, availableForCommissions: true, rating: 4.9, reviewCount: 67, specialties: ["Mural", "Japanese", "Ink"], startingPrice: "$1,100", portfolioImages: ["mural_14", "mural_08", "mural_10"]),
 
         // ── Wallpapers ────────────────────────────────────────────────
         Artist(name: "Emma Wilson", tagline: "Botanical Wallpaper Design", bio: "Lush botanical patterns for premium home wallpaper and fabric print.", location: "London, UK", bannerImage: "art_05", avatarImage: "art_12", works: 94, followers: "6.3k", sales: "$38k", verified: true, availableForCommissions: true, rating: 4.8, reviewCount: 72, specialties: ["Wallpaper", "Botanical", "Pattern"], startingPrice: "$180", portfolioImages: ["art_05", "art_12"]),
@@ -528,43 +528,57 @@ extension Artist {
 
 struct DiscoverView: View {
     @State private var path = NavigationPath()
+    @State private var searchText = ""
+    @State private var studioStore = StudioStore.shared
+    @Namespace private var servicesZoom
 
     private let categories = ServiceCategory.offered
 
     private let columns = 3
     private let gap: CGFloat = 10
-    /// Room left for the floating tab bar, so the last row is never covered.
-    private let tabBarClearance: CGFloat = 70
+    /// Clearance the old full-screen grid used when it sized tiles to the viewport.
+    private let legacyTabClearance: CGFloat = 70
+    private let legacyTopInset: CGFloat = 8
+    /// Room under the last row so the floating tab bar never covers it.
+    private let tabBarClearance: CGFloat = 120
+
+    private var trimmedQuery: String {
+        searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
-            // Every service on one screen: a grid that sizes its tiles to the space, no scrolling.
             GeometryReader { geo in
                 let rows = Int(ceil(Double(categories.count) / Double(columns)))
                 let width = (geo.size.width - 32 - gap * CGFloat(columns - 1)) / CGFloat(columns)
-                let height = (geo.size.height - tabBarClearance - 8 - gap * CGFloat(rows - 1)) / CGFloat(rows)
-                LazyVGrid(
-                    columns: Array(repeating: GridItem(.fixed(width), spacing: gap), count: columns),
-                    spacing: gap
-                ) {
-                    ForEach(categories) { cat in
-                        ServiceTile(category: cat, imageName: cat.heroImageName)
-                            .frame(width: width, height: max(height, 80))
-                            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                            .onTapGesture {
-                                Haptics.tap()
-                                path.append(cat)
-                            }
+                let fitted = (geo.size.height - legacyTabClearance - legacyTopInset - gap * CGFloat(rows - 1)) / CGFloat(rows)
+                let height = max(fitted * 0.8, 80)
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        header
+                        searchField
+                        if trimmedQuery.isEmpty {
+                            categoryGrid(width: width, height: height)
+                        } else {
+                            searchResults
+                        }
                     }
+                    .padding(.bottom, tabBarClearance)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .scrollDismissesKeyboard(.interactively)
             }
             .background(Color.picardoBackground)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .navigationDestination(for: ServiceCategory.self) { category in
                 CategoryServicesView(category: category)
+                    .modifier(ServicesZoomDestination(id: category.id, namespace: servicesZoom))
+            }
+            .navigationDestination(for: MyServicesRoute.self) { _ in
+                MyServicesPlaceholderView()
+            }
+            .navigationDestination(for: StudioDestination.self) { destination in
+                StudioPage(destination: destination)
             }
             .navigationDestination(for: ServiceArtistList.self) { list in
                 ServiceArtistListView(title: list.title, artists: list.artists)
@@ -586,6 +600,148 @@ struct DiscoverView: View {
         .onChange(of: path.count) { _, count in
             HeroVideoControl.setEnabled(count < 2)
         }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .center, spacing: 12) {
+                Text("Services")
+                    .font(.system(size: 34, weight: .bold, design: .serif))
+                    .foregroundStyle(Color.picardoText)
+                Spacer(minLength: 8)
+                Button {
+                    Haptics.tap()
+                    path.append(MyServicesRoute())
+                } label: {
+                    Text(studioStore.hasStudio ? "My Studio" : "Offer a service")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.picardoCard, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(studioStore.hasStudio ? "My Studio" : "Offer a service")
+            }
+            Text("Hire an artist for your next idea.")
+                .font(.system(size: 15))
+                .foregroundStyle(Color.picardoTextSecondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search services, artists, styles", text: $searchText)
+                .font(.system(size: 15))
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+            if !searchText.isEmpty {
+                Button {
+                    searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 13)
+        .background(Color(.systemBackground), in: Capsule())
+        .shadow(color: .black.opacity(0.10), radius: 6, y: 2)
+        .padding(.horizontal, 16)
+    }
+
+    private func categoryGrid(width: CGFloat, height: CGFloat) -> some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.fixed(width), spacing: gap), count: columns),
+            spacing: gap
+        ) {
+            ForEach(categories) { cat in
+                Button {
+                    Haptics.tap()
+                    path.append(cat)
+                } label: {
+                    ServiceTile(category: cat, imageName: cat.heroImageName)
+                        .frame(width: width, height: height)
+                        .modifier(ServicesZoomSource(id: cat.id, namespace: servicesZoom))
+                }
+                .buttonStyle(ServicesPressStyle())
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var searchResults: some View {
+        let hits = ServiceSearchHit.matching(trimmedQuery)
+        return Group {
+            if hits.isEmpty {
+                Text("No matches for \u{201C}\(trimmedQuery)\u{201D}.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.picardoTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 32)
+                    .padding(.horizontal, 24)
+            } else {
+                LazyVStack(spacing: 0) {
+                    ForEach(hits) { hit in
+                        Button {
+                            Haptics.tap()
+                            path.append(hit.category)
+                        } label: {
+                            searchResultRow(hit)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func searchResultRow(_ hit: ServiceSearchHit) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            switch hit {
+            case .listing(let listing):
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(listing.title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .lineLimit(1)
+                    Text("\(listing.artist.name) · \(listing.category.tileTitle)")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Text(listing.priceLabel)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(Color.picardoNeonRed)
+                    .lineLimit(1)
+            case .category(let category):
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(category.tileTitle)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(Color.picardoText)
+                        .lineLimit(1)
+                    Text(category.introLine)
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color.picardoTextSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -609,14 +765,17 @@ struct ServiceTile: View {
                     endPoint: .bottom
                 )
             }
-            .overlay(alignment: .bottomLeading) {
-                Text(category.rawValue)
+            .overlay(alignment: .bottom) {
+                Text(category.tileTitle)
                     .font(.system(size: 15, weight: .bold, design: .serif))
                     .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
                     .lineLimit(2)
-                    .minimumScaleFactor(0.8)
+                    .minimumScaleFactor(0.7)
                     .shadow(color: .black.opacity(0.4), radius: 4, y: 1)
-                    .padding(10)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 10)
+                    .frame(maxWidth: .infinity)
             }
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(
@@ -624,8 +783,49 @@ struct ServiceTile: View {
                     .strokeBorder(.white.opacity(0.12), lineWidth: 1)
             )
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(category.rawValue)
+            .accessibilityLabel(category.tileTitle)
             .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Tile press: scale to 0.97. Reduce Motion keeps the tile still.
+struct ServicesPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(!reduceMotion && configuration.isPressed ? 0.97 : 1)
+            .animation(ServicesMotion.animation(reduceMotion: reduceMotion), value: configuration.isPressed)
+    }
+}
+
+/// The tile is the zoom source. Reduce Motion skips the matched source.
+private struct ServicesZoomSource: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.matchedTransitionSource(id: id, in: namespace)
+        }
+    }
+}
+
+/// The category screen zooms out of the tapped tile. Reduce Motion is a plain push.
+private struct ServicesZoomDestination: ViewModifier {
+    let id: String
+    let namespace: Namespace.ID
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        if reduceMotion {
+            content
+        } else {
+            content.navigationTransition(.zoom(sourceID: id, in: namespace))
+        }
     }
 }
 
